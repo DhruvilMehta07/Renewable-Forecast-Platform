@@ -1,5 +1,5 @@
 """
-Sprint 2 - linear regression baseline, then XGBoost, on a time-based split.
+Sprint 2 - linear regression baseline, XGBoost, and Optuna-tuned LightGBM.
 
 Split (by issue_time, NOT random - see docs/DECISIONS.md for why random would leak):
     train: everything before (max_issue_time - 12 days)
@@ -20,20 +20,25 @@ section 1 for which columns and why.
 Outputs:
     ml/models/linear_baseline.joblib
     ml/models/xgboost_model.joblib
+    ml/models/lightgbm_model.joblib
     docs/eda/metrics_comparison.csv
     docs/eda/feature_importance.png
     docs/eda/prediction_interval_calibration.csv
+    docs/eda/lightgbm_optuna_trials.csv
 """
 
 import pandas as pd
 import numpy as np
 import joblib
+import json
 import os
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
 from xgboost import XGBRegressor
+from lightgbm import LGBMRegressor, early_stopping
+import optuna
 
 DATA_PATH = "data/plant1_forecast_dataset.csv"
 MODEL_DIR = "ml/models"
@@ -49,6 +54,7 @@ FEATURES = [
 ]
 TARGET = "target_ac_power"
 ZERO_THRESHOLD = 100
+N_OPTUNA_TRIALS = 20
 
 def time_based_split(df):
     max_t = df["issue_time"].max()
@@ -73,6 +79,85 @@ def compute_metrics(y_true, y_pred, label):
           f"MAE(near-zero/night rows, n={zero_mask.sum()})={zero_mae:.1f}")
     return {"model": label, "MAE": mae, "RMSE": rmse, "MAPE_daytime_pct": mape, "MAE_night": zero_mae}
 
+def split_for_tuning(train_df):
+    """Create spaced chronological folds for model selection."""
+    end = train_df["issue_time"].max()
+    folds = []
+    for fold_number in range(3):
+        val_end = end - pd.Timedelta(days=fold_number * 4)
+        val_start = val_end - pd.Timedelta(days=4)
+        fold_train = train_df[train_df["issue_time"] < val_start]
+        fold_val = train_df[
+            (train_df["issue_time"] >= val_start)
+            & (train_df["issue_time"] < val_end)
+        ]
+        folds.append((fold_train, fold_val))
+        print(
+            f"Tuning fold {fold_number + 1} -> train: {len(fold_train)} rows | "
+            f"validation: {len(fold_val)} rows"
+        )
+    return folds
+
+def tuning_score(y_true, y_pred):
+    """Balance plant-wide error with daytime error used for operations."""
+    overall_mae = np.mean(np.abs(y_true - y_pred))
+    daytime_mask = y_true > ZERO_THRESHOLD
+    daytime_error = np.mean(np.abs(y_true[daytime_mask] - y_pred[daytime_mask]))
+    return float(0.7 * overall_mae + 0.3 * daytime_error)
+
+def lightgbm_objective(trial, tuning_folds):
+    params = {
+        "objective": "regression",
+        "metric": "rmse",
+        "n_estimators": 1500,
+        "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.05, log=True),
+        "num_leaves": trial.suggest_int("num_leaves", 15, 63),
+        "max_depth": trial.suggest_int("max_depth", 4, 8),
+        "min_child_samples": trial.suggest_int("min_child_samples", 20, 100),
+        "subsample": trial.suggest_float("subsample", 0.70, 0.90),
+        "colsample_bytree": trial.suggest_float("colsample_bytree", 0.70, 0.90),
+        "reg_lambda": trial.suggest_float("reg_lambda", 1.0, 10.0, log=True),
+        "reg_alpha": trial.suggest_float("reg_alpha", 0.01, 1.0, log=True),
+        "random_state": 42,
+        "n_jobs": 1,
+        "verbosity": -1,
+        "subsample_freq": 1,
+    }
+    fold_scores = []
+    best_iterations = []
+    for fold_train, fold_val in tuning_folds:
+        model = LGBMRegressor(**params)
+        model.fit(
+            fold_train[FEATURES],
+            fold_train[TARGET],
+            eval_set=[(fold_val[FEATURES], fold_val[TARGET])],
+            callbacks=[early_stopping(50, verbose=False)],
+        )
+        predictions = model.predict(fold_val[FEATURES], num_iteration=model.best_iteration_)
+        fold_scores.append(tuning_score(fold_val[TARGET].to_numpy(), predictions))
+        best_iterations.append(model.best_iteration_)
+    trial.set_user_attr("mean_best_iteration", int(round(np.mean(best_iterations))))
+    return float(np.mean(fold_scores))
+
+def tune_lightgbm(tuning_folds):
+    optuna.logging.set_verbosity(optuna.logging.WARNING)
+    study = optuna.create_study(
+        direction="minimize",
+        sampler=optuna.samplers.TPESampler(seed=42),
+        study_name="renewable_forecast_lightgbm",
+    )
+    study.optimize(
+        lambda trial: lightgbm_objective(trial, tuning_folds),
+        n_trials=N_OPTUNA_TRIALS,
+        show_progress_bar=True,
+    )
+    print(f"Best LightGBM balanced validation score: {study.best_value:.1f} kW")
+    print("Best LightGBM parameters:")
+    for name, value in study.best_params.items():
+        print(f"  {name}: {value}")
+    study.trials_dataframe().to_csv(f"{OUT_DIR}/lightgbm_optuna_trials.csv", index=False)
+    return study
+
 def metrics_by_horizon_bucket(df, y_true_col, y_pred, label):
     d = df.copy()
     d["pred"] = y_pred
@@ -89,6 +174,7 @@ def metrics_by_horizon_bucket(df, y_true_col, y_pred, label):
 def main():
     df = pd.read_csv(DATA_PATH, parse_dates=["issue_time", "target_time"])
     train, val, test = time_based_split(df)
+    tuning_folds = split_for_tuning(train)
 
     all_metrics = []
     horizon_breakdown = []
@@ -130,6 +216,27 @@ def main():
     plt.close()
     print("\nFeature importance:\n", importance.sort_values(ascending=False))
 
+    print("\n=== LightGBM Optuna tuning ===")
+    lgbm_study = tune_lightgbm(tuning_folds)
+    lgbm_params = lgbm_study.best_params.copy()
+    lgbm_params["n_estimators"] = lgbm_study.best_trial.user_attrs["mean_best_iteration"]
+    lgbm_params.update({
+        "objective": "regression",
+        "random_state": 42,
+        "n_jobs": 1,
+        "verbosity": -1,
+        "subsample_freq": 1,
+    })
+    with open(f"{MODEL_DIR}/lightgbm_best_params.json", "w") as file:
+        json.dump(lgbm_params, file, indent=2)
+    print(f"Using mean fold best_iteration: {lgbm_params['n_estimators']}")
+    lgbm_model = LGBMRegressor(**lgbm_params)
+    lgbm_model.fit(train[FEATURES], train[TARGET])
+    lgbm_pred_test = lgbm_model.predict(test[FEATURES])
+    all_metrics.append(compute_metrics(test[TARGET].values, lgbm_pred_test, "lightgbm_optuna"))
+    horizon_breakdown += metrics_by_horizon_bucket(test, TARGET, lgbm_pred_test, "lightgbm_optuna")
+    joblib.dump(lgbm_model, f"{MODEL_DIR}/lightgbm_model.joblib")
+
     print("\n=== Prediction interval calibration (on val set, not test) ===")
     xgb_pred_val = xgb_model.predict(val[FEATURES])
     val_resid = val[TARGET].values - xgb_pred_val
@@ -146,7 +253,10 @@ def main():
     pd.DataFrame(all_metrics).to_csv(f"{OUT_DIR}/metrics_comparison.csv", index=False)
     pd.DataFrame(horizon_breakdown).to_csv(f"{OUT_DIR}/metrics_by_horizon.csv", index=False)
     print(f"\nSaved metrics -> {OUT_DIR}/metrics_comparison.csv, {OUT_DIR}/metrics_by_horizon.csv")
-    print(f"Saved models -> {MODEL_DIR}/linear_baseline.joblib, {MODEL_DIR}/xgboost_model.joblib")
+    print(
+        f"Saved models -> {MODEL_DIR}/linear_baseline.joblib, "
+        f"{MODEL_DIR}/xgboost_model.joblib, {MODEL_DIR}/lightgbm_model.joblib"
+    )
 
 if __name__ == "__main__":
     main()

@@ -1,7 +1,7 @@
 """
-Loads the trained XGBoost model once (module-level cache) and exposes
-prediction + interval lookup. See docs/MODELING.md for why these specific
-values and why this specific model was chosen over the linear baseline.
+Loads the selected LightGBM model once (module-level cache) and exposes
+prediction + interval lookup. The XGBoost artifact remains stored as a
+benchmark/fallback model.
 """
 
 import joblib

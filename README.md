@@ -6,20 +6,21 @@ Full original concept: [`docs/Ideation_Report_TheFinalCommit.pdf`](docs/Ideation
 
 ## Status
 
-**Sprint 4 of 8 complete.** Data pipeline, EDA, modeling, backend, and the frontend dashboard are all built. The dashboard's build is verified but not yet visually confirmed in this environment (see `docs/FRONTEND.md`) — a 2nd site (Sprint 5, stretch) or deployment (Sprint 6) is next. Full sprint-by-sprint status: [`docs/Project_Plan.md`](docs/Project_Plan.md).
+**Sprint 4 of 8 complete.** Data pipeline, EDA, modeling, backend, and the frontend dashboard are all built. The live backend now uses the Optuna-tuned LightGBM model; XGBoost remains stored as a benchmark/fallback. The dashboard's build is verified but not yet visually confirmed in this environment (see `docs/FRONTEND.md`) — a 2nd site (Sprint 5, stretch) or deployment (Sprint 6) is next. Full sprint-by-sprint status: [`docs/Project_Plan.md`](docs/Project_Plan.md).
 
 ## Model performance
 
 | Model | MAE | MAPE (daytime) |
 |---|---|---|
 | Linear regression baseline | 422.8 | 20.5% |
-| **XGBoost** | **320.6** | **6.5%** |
+| XGBoost | 320.6 | 6.5% |
+| **Optuna-tuned LightGBM** | **267.8** | **5.0%** |
 
-Full results, feature importance, and prediction interval calibration: [`docs/MODELING.md`](docs/MODELING.md).
+Full results, LightGBM tuning details, feature importance, and prediction interval calibration: [`docs/MODELING.md`](docs/MODELING.md).
 
 ## How it works
 
-1. **Offline, once:** historical solar generation + weather data → feature engineering → a horizon-aware training set → trains an XGBoost model.
+1. **Offline, once:** historical solar generation + weather data → feature engineering → a horizon-aware training set → compares linear regression, XGBoost, and Optuna-tuned LightGBM.
 2. **Live, on every request:** current + 72hr forecast weather (Open-Meteo) + computed solar position (pvlib) → assembled into the same feature shape the model was trained on → 72-hour prediction with a confidence band.
 3. **Then:** a rule-based decision engine flags curtailment/dispatch/backup periods from the prediction, and a dashboard displays the forecast, alerts, and feature importance.
 
@@ -48,7 +49,7 @@ pip install -r requirements.txt
 
 python3 ml/build_forecast_dataset.py   # builds data/plant1_forecast_dataset.csv
 python3 ml/eda.py                       # regenerates docs/eda/*.png and stats
-python3 ml/train_models.py              # trains both models, saves ml/models/*.joblib
+python3 ml/train_models.py              # trains baseline, XGBoost, and tuned LightGBM
 
 cd backend
 uvicorn main:app --reload               # serves the API at http://localhost:8000
@@ -62,7 +63,7 @@ npm install && npm run dev              # serves the dashboard, defaults to http
 
 Two real bugs were found and fixed during data pipeline development (timeline gaps breaking lag features, and an initial nowcast/forecast mismatch) — full writeup in [`docs/DECISIONS.md`](docs/DECISIONS.md). EDA findings (zero-inflation, multicollinearity, residual missing values) are in [`docs/EDA.md`](docs/EDA.md). Modeling results and the resolved "current state anchor" question are in [`docs/MODELING.md`](docs/MODELING.md).
 
-Known limitations: both models show similar RMSE despite XGBoost's clear MAE/MAPE advantage — rare, sudden-weather-transition cases remain harder to predict than the average-case numbers suggest. The decision engine's capacity/demand thresholds are a practical proxy (no real grid-demand data available for this dataset), documented in [`docs/BACKEND.md`](docs/BACKEND.md).
+Known limitations: the evaluation uses one short historical period and assumes perfect target-time weather during backtesting; rare, sudden-weather-transition cases remain harder to predict than average-case numbers suggest. LightGBM is the current live model, while XGBoost remains a benchmark/fallback. The decision engine's capacity/demand thresholds are a practical proxy (no real grid-demand data available for this dataset), documented in [`docs/BACKEND.md`](docs/BACKEND.md).
 
 ## Future scope
 

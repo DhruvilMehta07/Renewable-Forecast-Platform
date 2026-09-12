@@ -36,6 +36,10 @@ frontend/src/
 `http://localhost:8000`, overridable without a code change once Sprint 6
 deploys the backend somewhere else.
 
+The live `/forecast` and `/feature-importance` responses are produced by the
+Optuna-tuned LightGBM model. The XGBoost artifact remains stored as a
+benchmark/fallback and does not change the frontend response contract.
+
 ## What was and wasn't verified in this environment
 
 `npm run build` succeeds (594 modules, no errors) — that catches syntax and

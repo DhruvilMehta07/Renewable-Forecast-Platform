@@ -7,7 +7,7 @@ backend/
   config.py           site constants, feature order, calibration values, thresholds
   weather_client.py   Open-Meteo fetch (no API key required)
   features.py         live feature assembly - counterpart to ml/build_forecast_dataset.py
-  model_service.py     loads ml/models/xgboost_model.joblib, predicts, looks up intervals
+  model_service.py     loads ml/models/lightgbm_model.joblib, predicts, looks up intervals
   decision_engine.py   rule-based curtail/backup_dispatch/normal flags
   database.py         SQLite persistence of each forecast run
   main.py             FastAPI app: /health, /forecast, /feature-importance, /history
@@ -46,7 +46,7 @@ itself succeeds.
    `ValueError: The truth value of a Series is ambiguous` the first time a real
    request ran the code path. Fixed by explicitly indexing the `ghi` column
    before extracting the scalar.
-2. **XGBoost can predict small negative values** near the physical floor of
+2. **The tree model can predict small negative values** near the physical floor of
    zero generation (a real test case caught `-15.1`). This isn't a data or code
    bug — the model has no built-in awareness that power can't be negative, it's
    just a regression that occasionally undershoots near zero. Fixed by clipping
@@ -70,7 +70,7 @@ also run against the actual Open-Meteo API and produced a physically sensible
 72-hour curve — sunrise ramp-up, midday peak (~20,900–22,750 kW), dusk taper,
 repeating consistently across all 3 forecast days, with `backup_dispatch`
 firing at the same relative dusk hour each day (h=1, 25, 49) and interval math
-checking out exactly (e.g. prediction 20900.5 ± 755.5 = [20145.0, 21656.0]).
+checking out exactly (e.g. prediction 20900.5 ± 649.0 = [20251.5, 21549.5]).
 
 ## Decision engine design choices
 
@@ -105,7 +105,7 @@ independent training runs, so a crude placeholder costs essentially nothing.
 
 ## Testing
 
-4 tests in `backend/tests/test_forecast.py`, all passing:
+5 tests in `backend/tests/test_forecast.py`, all passing:
 response shape (72 rows, horizons 1–72 in order), value sanity (bounds bracket
 the prediction, decision is one of the 3 valid values), persistence
 (a forecast run is retrievable via `/history`), feature importance sums to 1.0,

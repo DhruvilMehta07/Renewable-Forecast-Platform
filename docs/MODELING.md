@@ -1,9 +1,10 @@
-# Sprint 2 - Modeling: linear baseline vs XGBoost
+# Sprint 2 - Modeling: linear baseline vs tuned tree models
 
 Script: `ml/train_models.py`. Split: time-based, by `issue_time` - train on everything
 before 2020-06-05 22:45, calibrate prediction intervals on the next 6 days (val),
-report final metrics on the last 6 days (test, touched once). Never a random split -
-see `docs/DECISIONS.md` for why that would leak.
+report final metrics on the last 6 days (test, touched once). LightGBM uses Optuna
+with three spaced four-day validation windows and early stopping. Never a random
+split - see `docs/DECISIONS.md` for why that would leak.
 
 ## Headline results
 
@@ -11,20 +12,56 @@ see `docs/DECISIONS.md` for why that would leak.
 |---|---|---|---|---|
 | Linear regression baseline | 422.8 | 659.1 | 20.5% | 169.5 |
 | XGBoost | 320.6 | 656.0 | **6.5%** | **0.4** |
+| **Optuna-tuned LightGBM** | **267.8** | **577.9** | **5.0%** | **1.0** |
 
 MAPE is computed only over rows where actual generation > 100 (daytime) - with
 ~46.6% of rows at exactly 0, a naive MAPE divides by zero constantly. The
-zero/near-zero subset is reported separately as MAE instead, where XGBoost's
-advantage is largest: it can cleanly gate to near-zero at night, where the linear
-model's continuous coefficients leave residual noise.
+zero/near-zero subset is reported separately as MAE instead. XGBoost has the
+lowest nighttime error, while LightGBM is better overall and during daytime.
 
-**Interesting nuance:** RMSE is nearly identical between the two models (659.1 vs
-656.0), while MAE and MAPE both favor XGBoost substantially. RMSE penalizes large
-errors more heavily than MAE, so this gap says both models still struggle similarly
-on rare, hard-to-predict cases (likely sudden weather transitions) - XGBoost's
-advantage is in getting the typical case much more right, not in fixing the
-worst-case misses. Worth a line in the README's limitations: rare extreme-weather
-transitions remain a harder problem than the average-case numbers suggest.
+LightGBM is the best model on this untouched test window: it reduces MAE to
+267.8 kW, RMSE to 577.9 kW, and daytime MAPE to 5.0%. Its night MAE is 1.0 kW.
+The improvement is especially meaningful because all three models use the same
+chronological split and the test period is not used during tuning.
+
+RMSE still penalizes large errors more heavily than MAE, so sudden weather
+transitions remain harder than typical solar-generation periods.
+
+## LightGBM Optuna tuning
+
+LightGBM was tuned with 20 Optuna TPE trials. Each trial used three spaced,
+chronological four-day validation windows, native missing-value handling, and
+early stopping after 50 rounds without validation improvement. The objective was
+a balanced score: 70% overall MAE and 30% daytime MAE. The final tree count was
+the mean best iteration across the validation folds.
+
+Selected values:
+
+| Parameter | Value |
+|---|---:|
+| `learning_rate` | 0.0241 |
+| `num_leaves` | 24 |
+| `max_depth` | 8 |
+| `min_child_samples` | 82 |
+| `subsample` | 0.8879 |
+| `colsample_bytree` | 0.8790 |
+| `reg_lambda` | 3.9619 |
+| `reg_alpha` | 0.6978 |
+| `n_estimators` | 780 |
+
+The regularization, limited tree depth, minimum child size, subsampling, and
+early stopping reduce the risk of fitting individual weather days. Trial results
+are saved in `docs/eda/lightgbm_optuna_trials.csv`, parameters in
+`ml/models/lightgbm_best_params.json`, and the trained model in
+`ml/models/lightgbm_model.joblib`.
+
+## Horizon comparison
+
+| Model | 1-24h MAE | 25-48h MAE | 49-72h MAE |
+|---|---:|---:|---:|
+| Linear regression | 430.3 | 423.5 | 410.0 |
+| XGBoost | 320.0 | 328.0 | 312.1 |
+| LightGBM | **270.3** | **276.7** | **252.5** |
 
 ## Reproducibility note
 
@@ -91,9 +128,9 @@ metrics) - 90th-percentile absolute residual, by horizon bucket (this run):
 
 | Horizon | p90 absolute residual |
 |---|---|
-| 1-24h | 755.5 |
-| 25-48h | 850.0 |
-| 49-72h | 914.8 |
+| 1-24h | 649.0 |
+| 25-48h | 754.6 |
+| 49-72h | 865.8 |
 
 Band = prediction +/- the bucket's value, applied at inference. Grows with horizon,
 as it should - confirms the calibration is behaving sensibly rather than
@@ -101,16 +138,12 @@ arbitrarily.
 
 ## Decisions made
 
-- **Model choice for the live system: XGBoost.** Wins on every metric that matters
-  for this use case (typical-case accuracy, and specifically night-time cleanliness),
-  reproduced on two machines.
-- **No hyperparameter search performed** (n_estimators=300, max_depth=6,
-  learning_rate=0.05, subsample/colsample=0.8 - reasonable defaults, not tuned)
-  given hackathon time constraints. Documented here as an explicit scope cut, not
-  an oversight - a good, honest answer if asked in judging.
-- **Both model artifacts committed to the repo** (`ml/models/*.joblib`) rather than
-  regenerated on demand - `xgboost_model.joblib` is ~1.3MB, small enough to commit,
-  and this means Sprint 3's backend can load a trained model directly without a
-  retraining step at deploy time. The committed model is whichever machine trained
-  it last - exact metrics may shift slightly (see reproducibility note) but the
-  conclusion is stable.
+- **Model choice for the live system: Optuna-tuned LightGBM.** It has the lowest
+  test MAE, RMSE, and daytime MAPE. XGBoost remains stored as a benchmark/fallback
+  and has slightly lower nighttime MAE.
+- **Hyperparameter tuning:** LightGBM uses 20 Optuna trials, three spaced
+  chronological validation windows, regularization, subsampling, and early
+  stopping. The final model uses the mean best iteration from those folds.
+- **Model artifacts are stored separately:** `lightgbm_model.joblib` is loaded by
+  the backend, while `xgboost_model.joblib` and `linear_baseline.joblib` remain
+  available for comparison and fallback.

@@ -10,3 +10,5 @@ fastapi
 uvicorn
 httpx
 pytest
+optuna
+lightgbm

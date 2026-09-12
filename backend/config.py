@@ -24,7 +24,9 @@ TIMEZONE = "Asia/Kolkata"
 _BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
 _REPO_ROOT = os.path.dirname(_BACKEND_DIR)
 
-MODEL_PATH = os.path.join(_REPO_ROOT, "ml", "models", "xgboost_model.joblib")
+# LightGBM is the selected live model; xgboost_model.joblib remains available
+# as the retained benchmark/fallback artifact.
+MODEL_PATH = os.path.join(_REPO_ROOT, "ml", "models", "lightgbm_model.joblib")
 DB_PATH = os.path.join(_BACKEND_DIR, "forecast.db")
 
 FEATURES = [
@@ -34,11 +36,11 @@ FEATURES = [
     "target_solar_elevation", "target_is_daytime",
 ]
 
-# From docs/MODELING.md - val-set p90 absolute residual, by horizon bucket
+# LightGBM validation-set p90 absolute residual, by horizon bucket
 PREDICTION_INTERVALS = {
-    "1-24h": 755.5,
-    "25-48h": 850.0,
-    "49-72h": 914.8,
+    "1-24h": 649.0,
+    "25-48h": 754.6,
+    "49-72h": 865.8,
 }
 
 SITE_CAPACITY_KW = 29150  # max observed AC_POWER in training data - see docstring above

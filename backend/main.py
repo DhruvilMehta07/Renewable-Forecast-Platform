@@ -69,7 +69,14 @@ def get_forecast():
 @app.get("/feature-importance")
 def get_feature_importance():
     model = model_service.get_model()
-    importance = dict(zip(config.FEATURES, [float(x) for x in model.feature_importances_]))
+    raw_importance = [float(x) for x in model.feature_importances_]
+    total_importance = sum(raw_importance)
+    importance_values = (
+        [value / total_importance for value in raw_importance]
+        if total_importance > 0
+        else raw_importance
+    )
+    importance = dict(zip(config.FEATURES, importance_values))
     return {"feature_importance": dict(sorted(importance.items(), key=lambda kv: -kv[1]))}
 
 
