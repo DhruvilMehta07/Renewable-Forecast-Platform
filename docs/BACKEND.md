@@ -37,9 +37,17 @@ The public auth endpoints are:
 
 | Endpoint | Purpose |
 |---|---|
-| `POST /auth/signup` | Create a user with `username`, `display_name`, and a password of at least 8 characters |
-| `POST /auth/login` | Validate credentials and return an expiring signed bearer token |
+| `POST /auth/signup` | Submit a pending user request with `username`, `display_name`, a six-digit `employee_id`, and a password of at least 8 characters |
+| `POST /auth/login` | Validate `account_type` (`user` or `admin`) and approved credentials, then return an expiring signed bearer token |
 | `GET /auth/me` | Validate the current token and return the public user profile |
+
+Admin-only endpoints:
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /admin/account-requests` | List pending employee access requests |
+| `POST /admin/account-requests/{user_id}/approve` | Approve a pending user |
+| `POST /admin/account-requests/{user_id}/reject` | Reject a pending user |
 
 Passwords are hashed with PBKDF2-HMAC-SHA256 and a per-user random salt; raw
 passwords are never stored. Tokens expire after eight hours. Set
@@ -47,9 +55,18 @@ passwords are never stored. Tokens expire after eight hours. Set
 environment. The development fallback secret is intentionally only for local
 use and must be replaced outside development.
 
-Authorization is user-scoped: saved forecast runs are associated with the
-authenticated user, and `/history` only returns that user's runs. The API also
-returns `401` for missing or invalid tokens and `409` for duplicate usernames.
+Signup never returns an access token. A user is created with `status = pending`
+and cannot log in until an admin changes it to `approved`; rejected users also
+cannot log in. Employee IDs must match exactly six numeric digits and are
+unique. Authorization is user-scoped: saved forecast runs are associated with
+the authenticated user, and `/history` only returns that user's runs. Admin
+routes require `role = admin`; normal users receive `403`. The API returns
+`401` for missing or invalid tokens and `409` for duplicate usernames or
+employee IDs.
+
+The first startup provisions one admin using `GREENCAST_ADMIN_USERNAME` and
+`GREENCAST_ADMIN_PASSWORD`, defaulting locally to `admin` and
+`GreenCastAdmin123!`. These defaults must be changed before deployment.
 
 ## Two real bugs found by the test suite before they could reach the API
 
@@ -154,7 +171,7 @@ unchanged.
 
 ## Testing
 
-14 tests in `backend/tests/test_forecast.py`, all passing:
+17 tests in `backend/tests/test_forecast.py`, all passing:
 response shape (72 rows, horizons 1–72 in order), value sanity (bounds bracket
 the prediction, decision is one of the 3 valid values), persistence
 (a forecast run and its saved forecast rows are retrievable via `/history`), feature importance sums to 1.0,

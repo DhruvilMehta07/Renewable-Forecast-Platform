@@ -1,3 +1,4 @@
+import os
 import re
 
 from fastapi import Depends, FastAPI, HTTPException, Query, status
@@ -10,7 +11,7 @@ import features
 import model_service
 import decision_engine
 import database
-from auth import create_access_token, get_current_user, hash_password, verify_password
+from auth import create_access_token, get_current_user, hash_password, require_role, verify_password
 
 app = FastAPI(title="Renewable Forecast Platform API")
 
@@ -20,16 +21,37 @@ app.add_middleware(
 
 database.init_db()
 
+DEFAULT_ADMIN_USERNAME = os.getenv("GREENCAST_ADMIN_USERNAME", "admin")
+DEFAULT_ADMIN_PASSWORD = os.getenv("GREENCAST_ADMIN_PASSWORD", "GreenCastAdmin123!")
+
+
+def ensure_default_admin():
+    if database.get_user_by_username(DEFAULT_ADMIN_USERNAME):
+        return
+    database.create_user(
+        DEFAULT_ADMIN_USERNAME,
+        "GreenCast Administrator",
+        hash_password(DEFAULT_ADMIN_PASSWORD),
+        employee_id=None,
+        role="admin",
+        status="approved",
+    )
+
+
+ensure_default_admin()
+
 
 class SignupRequest(BaseModel):
     username: str = Field(min_length=3, max_length=32)
     password: str = Field(min_length=8, max_length=128)
     display_name: str = Field(min_length=1, max_length=80)
+    employee_id: str = Field(pattern=r"^\d{6}$")
 
 
 class LoginRequest(BaseModel):
     username: str = Field(min_length=3, max_length=32)
     password: str = Field(min_length=1, max_length=128)
+    account_type: str = Field(pattern=r"^(admin|user)$")
 
 
 def public_user(user: dict) -> dict:
@@ -37,7 +59,9 @@ def public_user(user: dict) -> dict:
         "id": user["id"],
         "username": user["username"],
         "display_name": user["display_name"],
+        "employee_id": user.get("employee_id"),
         "role": user["role"],
+        "status": user["status"],
     }
 
 
@@ -51,21 +75,58 @@ def signup(request: SignupRequest):
         raise HTTPException(status_code=422, detail="Display name is required")
     if database.get_user_by_username(username):
         raise HTTPException(status_code=409, detail="Username is already registered")
-    user = database.create_user(username, display_name, hash_password(request.password))
-    return {"access_token": create_access_token(user), "token_type": "bearer", "user": public_user(user)}
+    try:
+        user = database.create_user(
+            username,
+            display_name,
+            hash_password(request.password),
+            employee_id=request.employee_id,
+            status="pending",
+        )
+    except Exception as error:
+        if "UNIQUE constraint failed: users.employee_id" in str(error):
+            raise HTTPException(status_code=409, detail="Employee ID is already registered")
+        raise
+    return {"status": "pending", "message": "Account request submitted. An administrator must approve it before you can sign in."}
 
 
 @app.post("/auth/login")
 def login(request: LoginRequest):
     user = database.get_user_by_username(request.username.strip())
+    if request.account_type == "admin" and (not user or user["role"] != "admin"):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid administrator credentials", headers={"WWW-Authenticate": "Bearer"})
+    if request.account_type == "user" and (not user or user["role"] != "user"):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid user credentials", headers={"WWW-Authenticate": "Bearer"})
     if not user or not verify_password(request.password, user["password_hash"]):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect username or password", headers={"WWW-Authenticate": "Bearer"})
+    if user["status"] != "approved":
+        detail = "Your account request is awaiting administrator approval." if user["status"] == "pending" else "Your account request was not approved."
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
     return {"access_token": create_access_token(user), "token_type": "bearer", "user": public_user(user)}
 
 
 @app.get("/auth/me")
 def me(user: dict = Depends(get_current_user)):
     return {"user": public_user(user)}
+
+
+@app.get("/admin/account-requests")
+def account_requests(admin: dict = Depends(require_role("admin"))):
+    return {"requests": database.get_pending_users()}
+
+
+@app.post("/admin/account-requests/{user_id}/approve")
+def approve_account(user_id: int, admin: dict = Depends(require_role("admin"))):
+    if not database.set_user_status(user_id, "approved"):
+        raise HTTPException(status_code=404, detail="Pending user request not found")
+    return {"status": "approved", "user_id": user_id}
+
+
+@app.post("/admin/account-requests/{user_id}/reject")
+def reject_account(user_id: int, admin: dict = Depends(require_role("admin"))):
+    if not database.set_user_status(user_id, "rejected"):
+        raise HTTPException(status_code=404, detail="Pending user request not found")
+    return {"status": "rejected", "user_id": user_id}
 
 
 @app.get("/health")

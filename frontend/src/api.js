@@ -38,10 +38,10 @@ export function getHistory(limit = 10, token) {
   return getJSON(`/history?limit=${limit}`, token);
 }
 
-async function postJSON(path, body) {
+async function postJSON(path, body, token) {
   const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: JSON.stringify(body),
   });
   if (!res.ok) {
@@ -61,4 +61,16 @@ export function signupUser(details) {
 
 export function getCurrentUser(token) {
   return getJSON("/auth/me", token);
+}
+
+export function getAccountRequests(token) {
+  return getJSON("/admin/account-requests", token);
+}
+
+export function approveAccount(userId, token) {
+  return postJSON(`/admin/account-requests/${userId}/approve`, {}, token);
+}
+
+export function rejectAccount(userId, token) {
+  return postJSON(`/admin/account-requests/${userId}/reject`, {}, token);
 }

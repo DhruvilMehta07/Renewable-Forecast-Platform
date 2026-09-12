@@ -41,14 +41,24 @@ def _use_temp_db(monkeypatch, tmp_path):
 def _authenticated_client():
     client = TestClient(main.app)
     username = f"test_{uuid4().hex[:10]}"
+    employee_id = str(100000 + int(uuid4().hex[:5], 16) % 900000)
     response = client.post(
         "/auth/signup",
-        json={"username": username, "password": "test-password-123", "display_name": "Test User"},
+        json={"username": username, "password": "test-password-123", "display_name": "Test User", "employee_id": employee_id},
     )
     assert response.status_code == 200
-    client.headers.update({"Authorization": f"Bearer {response.json()['access_token']}"})
+    assert response.json()["status"] == "pending"
+    user = database.get_user_by_username(username)
+    assert database.set_user_status(user["id"], "approved")
+    login = client.post("/auth/login", json={"username": username, "password": "test-password-123", "account_type": "user"})
+    assert login.status_code == 200
+    client.headers.update({"Authorization": f"Bearer {login.json()['access_token']}"})
     client.test_username = username
     return client
+
+
+def _employee_id():
+    return str(100000 + int(uuid4().hex[:5], 16) % 900000)
 
 
 def test_protected_forecast_requires_authentication():
@@ -59,22 +69,58 @@ def test_protected_forecast_requires_authentication():
 def test_signup_login_and_duplicate_username():
     client = TestClient(main.app)
     username = f"operator_{uuid4().hex[:10]}"
-    payload = {"username": username, "password": "secure-pass-123", "display_name": "Grid Operator"}
+    payload = {"username": username, "password": "secure-pass-123", "display_name": "Grid Operator", "employee_id": _employee_id()}
 
     signup = client.post("/auth/signup", json=payload)
     assert signup.status_code == 200
-    assert signup.json()["user"]["username"] == username
-    assert "password_hash" not in signup.json()["user"]
+    assert signup.json()["status"] == "pending"
 
     duplicate = client.post("/auth/signup", json=payload)
     assert duplicate.status_code == 409
 
-    login = client.post("/auth/login", json={"username": username, "password": payload["password"]})
+    pending_login = client.post("/auth/login", json={"username": username, "password": payload["password"], "account_type": "user"})
+    assert pending_login.status_code == 403
+
+    user = database.get_user_by_username(username)
+    database.set_user_status(user["id"], "approved")
+    login = client.post("/auth/login", json={"username": username, "password": payload["password"], "account_type": "user"})
     assert login.status_code == 200
     assert login.json()["token_type"] == "bearer"
 
-    wrong_password = client.post("/auth/login", json={"username": username, "password": "wrong-password"})
+    wrong_password = client.post("/auth/login", json={"username": username, "password": "wrong-password", "account_type": "user"})
     assert wrong_password.status_code == 401
+
+
+def test_employee_id_must_be_six_digits():
+    response = TestClient(main.app).post(
+        "/auth/signup",
+        json={"username": f"short_{uuid4().hex[:8]}", "password": "secure-pass-123", "display_name": "Short ID", "employee_id": "12345"},
+    )
+    assert response.status_code == 422
+
+
+def test_admin_can_review_account_requests():
+    client = TestClient(main.app)
+    username = f"pending_{uuid4().hex[:8]}"
+    signup = client.post(
+        "/auth/signup",
+        json={"username": username, "password": "secure-pass-123", "display_name": "Pending User", "employee_id": _employee_id()},
+    )
+    assert signup.status_code == 200
+    admin_login = client.post("/auth/login", json={"username": "admin", "password": "GreenCastAdmin123!", "account_type": "admin"})
+    assert admin_login.status_code == 200
+    client.headers.update({"Authorization": f"Bearer {admin_login.json()['access_token']}"})
+    requests = client.get("/admin/account-requests")
+    assert requests.status_code == 200
+    request = next(item for item in requests.json()["requests"] if item["username"] == username)
+    approval = client.post(f"/admin/account-requests/{request['id']}/approve")
+    assert approval.status_code == 200
+
+
+def test_user_cannot_access_admin_requests():
+    client = _authenticated_client()
+    response = client.get("/admin/account-requests")
+    assert response.status_code == 403
 
 
 def test_history_is_scoped_to_authenticated_user():

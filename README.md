@@ -36,23 +36,40 @@ Full breakdown of what's used at each step: [`docs/DECISIONS.md`](docs/DECISIONS
 The GreenCast dashboard provides chart and table views, 24/48/72-hour focus
 controls, CSV export, capacity utilization, alert explanations, timezone and
 freshness context, saved-run comparison, and plain-language model guidance.
-Access to the dashboard is protected by username/password authentication with
-hashed passwords, expiring bearer tokens, and user-scoped forecast history.
+Access to the dashboard is protected by an administrator approval workflow,
+username/password authentication, hashed passwords, expiring bearer tokens,
+and user-scoped forecast history. Anyone can submit an access request, but only
+approved users can sign in and see forecast data.
 
 ## User workflow
 
-1. Open GreenCast. The public welcome screen explains the platform and offers
-	**Log in** or **Create account**.
-2. Create an account with a display name, unique username, and password of at
-	least eight characters. Passwords are never stored in plain text.
-3. After authentication, the dashboard loads the validated Plant 1 forecast.
-4. Use the dashboard controls to choose a time window, switch between chart and
+1. Open GreenCast. The public welcome screen offers **User login**, **Admin
+	login**, and **Create account**.
+2. Create an account with a display name, unique username, six-digit employee
+	ID, and password of at least eight characters. The request is stored as
+	`pending`; no dashboard token is issued.
+3. An administrator signs in through **Admin login**, reviews the employee ID
+	and account request, then chooses **Approve** or **Reject**.
+4. After approval, the employee signs in through **User login** and the
+	dashboard loads the validated Plant 1 forecast.
+5. Use the dashboard controls to choose a time window, switch between chart and
 	table views, inspect alerts, export CSV, and review model guidance.
 5. Use **What-if site** to search for a location, select a result, enter site
 	capacity, and run an approximate capacity-scaled estimate.
 6. Refresh the forecast to save a new run. Matching runs can then be compared
 	in the forecast history panel.
 7. Use **Sign out** to clear the local session token.
+
+The default local administrator is created automatically on first startup:
+
+```text
+Username: admin
+Password: GreenCastAdmin123!
+```
+
+Change these values before shared or deployed use with
+`GREENCAST_ADMIN_USERNAME` and `GREENCAST_ADMIN_PASSWORD`. Also set a strong
+`GREENCAST_AUTH_SECRET`; never use the development defaults in production.
 
 ## Dashboard feature guide
 
@@ -66,7 +83,7 @@ hashed passwords, expiring bearer tokens, and user-scoped forecast history.
 | Capacity utilization | Expected generation as a percentage of site capacity | Review the utilization chart or table column |
 | Action explanations | Why curtailment or backup dispatch was flagged | Read the explanation under each alert |
 | Timezone and freshness | Site timezone, issue time, and refresh age | Check the dashboard header before interpreting timestamps |
-| Forecast comparison | Change between matching saved forecast runs | Refresh at least twice in the same mode/site/capacity |
+| Forecast comparison | Change between matching saved forecast runs | Refresh at least twice in the same mode/site/capacity after approval |
 | Forecast guide | Plain-language explanations of output, range, and actions | Read the guide below the model panels |
 
 The Plant 1 view is the validated reference forecast. What-if mode is an

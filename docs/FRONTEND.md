@@ -120,13 +120,19 @@ happening" to "what should I do" to "why did the model decide that".
 
 ## Authentication experience
 
-The application opens on a public GreenCast welcome screen. Users can create
-an account with a display name, unique username, and password of at least eight
-characters, or log in with an existing username and password. The API returns
-an expiring bearer token; the frontend stores the session locally, validates it
-on reload, sends it with dashboard requests, and clears it on sign out.
+The application opens on a public GreenCast welcome screen. Users can submit an
+access request with a display name, unique username, six-digit employee ID, and
+password of at least eight characters. Signup returns a pending confirmation,
+not a session. An administrator uses the separate Admin login to approve or
+reject requests. Only approved employees can use User login.
 
-The forecast dashboard and all saved-run data are unavailable until login.
+After login, the API returns an expiring bearer token; the frontend stores the
+session locally, validates it on reload, sends it with dashboard requests, and
+clears it on sign out. Admin sessions open the request console rather than the
+forecast dashboard.
+
+The forecast dashboard and all saved-run data are unavailable until approved
+user login.
 What-if site settings, forecast tables, CSV export, utilization, alerts,
 comparison, and model guidance remain available after authentication exactly as
 before. The frontend does not store or inspect the password after submission.

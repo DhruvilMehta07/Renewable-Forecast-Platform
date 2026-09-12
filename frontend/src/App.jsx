@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { getCurrentUser, getFeatureImportance, getForecast, getGeocodeResults, getHistory, getWhatIfForecast } from "./api";
 import AlertsPanel from "./components/AlertsPanel";
+import AdminPanel from "./components/AdminPanel";
 import AuthScreen from "./components/AuthScreen";
 import ComparisonPanel from "./components/ComparisonPanel";
 import ForecastChart from "./components/ForecastChart";
@@ -244,5 +245,6 @@ export default function App() {
 
   if (checkingSession) return <div className="auth-loading">Checking your workspace...</div>;
   if (!session) return <AuthScreen onAuthenticated={handleAuthenticated} />;
+  if (session.user?.role === "admin") return <AdminPanel session={session} onLogout={logout} />;
   return <Dashboard session={session} onLogout={logout} />;
 }
