@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { getFeatureImportance, getForecast, getGeocodeResults, getHistory, getWhatIfForecast } from "./api";
+import { getCurrentUser, getFeatureImportance, getForecast, getGeocodeResults, getHistory, getWhatIfForecast } from "./api";
 import AlertsPanel from "./components/AlertsPanel";
+import AuthScreen from "./components/AuthScreen";
 import ComparisonPanel from "./components/ComparisonPanel";
 import ForecastChart from "./components/ForecastChart";
 import ForecastTable from "./components/ForecastTable";
@@ -41,7 +42,8 @@ function downloadForecast(forecast, timezone) {
   URL.revokeObjectURL(link.href);
 }
 
-export default function App() {
+function Dashboard({ session, onLogout }) {
+  const token = session.access_token;
   const [forecast, setForecast] = useState(null);
   const [importance, setImportance] = useState(null);
   const [history, setHistory] = useState([]);
@@ -70,11 +72,11 @@ export default function App() {
         return;
       }
       const forecastRequest = selectedMode === "plant"
-        ? getForecast()
-        : getWhatIfForecast({ ...site, ...selectedLocation });
+        ? getForecast(token)
+        : getWhatIfForecast({ ...site, ...selectedLocation }, token);
       const [forecastRes, importanceRes] = await Promise.all([
         forecastRequest,
-        getFeatureImportance(),
+        getFeatureImportance(token),
       ]);
       setForecast(forecastRes.forecast);
       setIssueTime(forecastRes.issue_time);
@@ -83,7 +85,7 @@ export default function App() {
       setImportance(importanceRes.feature_importance);
       setLoadedAt(new Date().toISOString());
       try {
-        const historyRes = await getHistory(3);
+        const historyRes = await getHistory(3, token);
         setHistory(historyRes.runs || []);
       } catch {
         setHistory([]);
@@ -118,7 +120,7 @@ export default function App() {
     setLocationError(null);
     setLocations([]);
     try {
-      const response = await getGeocodeResults(query);
+      const response = await getGeocodeResults(query, token);
       setLocations(response.results);
       if (!response.results.length) setLocationError("No matching location found.");
     } catch (searchError) {
@@ -156,7 +158,7 @@ export default function App() {
           <div className="status-badge"><span className="status-dot" />{approximate ? "Exploratory estimate" : "Live forecast"}</div>
           {issueTime && <div className="issued">Issued <span className="issue-time">{formatIssueTime(issueTime, timezone)}</span></div>}
           <div className="data-context">Timezone: {siteDetails?.timezone || "browser local time"} {freshness !== null && `· refreshed ${freshness}m ago`}</div>
-          <button className="refresh-btn primary-action" onClick={load} disabled={loading}>{loading ? "Refreshing..." : "Refresh forecast"}</button>
+          <div className="header-actions"><button className="refresh-btn primary-action" onClick={load} disabled={loading}>{loading ? "Refreshing..." : "Refresh forecast"}</button><button className="signout-button" onClick={onLogout}>Sign out</button></div>
         </div>
       </header>
 
@@ -206,4 +208,41 @@ export default function App() {
       )}
     </div>
   );
+}
+
+export default function App() {
+  const [session, setSession] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("greencast_session")) || null;
+    } catch {
+      return null;
+    }
+  });
+  const [checkingSession, setCheckingSession] = useState(Boolean(session));
+
+  useEffect(() => {
+    if (!session) return undefined;
+    getCurrentUser(session.access_token)
+      .then((response) => setSession((current) => ({ ...current, user: response.user })))
+      .catch(() => {
+        localStorage.removeItem("greencast_session");
+        setSession(null);
+      })
+      .finally(() => setCheckingSession(false));
+    return undefined;
+  }, []);
+
+  function handleAuthenticated(nextSession) {
+    localStorage.setItem("greencast_session", JSON.stringify(nextSession));
+    setSession(nextSession);
+  }
+
+  function logout() {
+    localStorage.removeItem("greencast_session");
+    setSession(null);
+  }
+
+  if (checkingSession) return <div className="auth-loading">Checking your workspace...</div>;
+  if (!session) return <AuthScreen onAuthenticated={handleAuthenticated} />;
+  return <Dashboard session={session} onLogout={logout} />;
 }

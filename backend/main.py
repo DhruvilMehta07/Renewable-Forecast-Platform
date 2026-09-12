@@ -1,5 +1,8 @@
-from fastapi import FastAPI, HTTPException, Query
+import re
+
+from fastapi import Depends, FastAPI, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 
 import config
 import weather_client
@@ -7,6 +10,7 @@ import features
 import model_service
 import decision_engine
 import database
+from auth import create_access_token, get_current_user, hash_password, verify_password
 
 app = FastAPI(title="Renewable Forecast Platform API")
 
@@ -17,13 +21,60 @@ app.add_middleware(
 database.init_db()
 
 
+class SignupRequest(BaseModel):
+    username: str = Field(min_length=3, max_length=32)
+    password: str = Field(min_length=8, max_length=128)
+    display_name: str = Field(min_length=1, max_length=80)
+
+
+class LoginRequest(BaseModel):
+    username: str = Field(min_length=3, max_length=32)
+    password: str = Field(min_length=1, max_length=128)
+
+
+def public_user(user: dict) -> dict:
+    return {
+        "id": user["id"],
+        "username": user["username"],
+        "display_name": user["display_name"],
+        "role": user["role"],
+    }
+
+
+@app.post("/auth/signup")
+def signup(request: SignupRequest):
+    username = request.username.strip()
+    display_name = request.display_name.strip()
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+", username):
+        raise HTTPException(status_code=422, detail="Username may contain only letters, numbers, dot, underscore, and hyphen")
+    if not display_name:
+        raise HTTPException(status_code=422, detail="Display name is required")
+    if database.get_user_by_username(username):
+        raise HTTPException(status_code=409, detail="Username is already registered")
+    user = database.create_user(username, display_name, hash_password(request.password))
+    return {"access_token": create_access_token(user), "token_type": "bearer", "user": public_user(user)}
+
+
+@app.post("/auth/login")
+def login(request: LoginRequest):
+    user = database.get_user_by_username(request.username.strip())
+    if not user or not verify_password(request.password, user["password_hash"]):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect username or password", headers={"WWW-Authenticate": "Bearer"})
+    return {"access_token": create_access_token(user), "token_type": "bearer", "user": public_user(user)}
+
+
+@app.get("/auth/me")
+def me(user: dict = Depends(get_current_user)):
+    return {"user": public_user(user)}
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
 
 @app.get("/geocode")
-def geocode(query: str = Query(..., min_length=2, max_length=120)):
+def geocode(query: str = Query(..., min_length=2, max_length=120), user: dict = Depends(get_current_user)):
     query = query.strip()
     if len(query) < 2:
         raise HTTPException(status_code=422, detail="Location query must contain at least 2 characters")
@@ -63,7 +114,7 @@ def geocode(query: str = Query(..., min_length=2, max_length=120)):
     }
 
 
-def build_forecast_response(lat, lon, timezone, capacity_kw, approximate):
+def build_forecast_response(lat, lon, timezone, capacity_kw, approximate, user_id):
     try:
         weather_json = weather_client.fetch_weather(lat, lon, timezone)
     except Exception as e:
@@ -106,6 +157,7 @@ def build_forecast_response(lat, lon, timezone, capacity_kw, approximate):
         forecast_rows,
         site={"lat": lat, "lon": lon, "timezone": resolved_timezone, "capacity_kw": capacity_kw},
         mode="what_if" if approximate else "plant_1",
+        user_id=user_id,
     )
     return {
         "issue_time": issue_time.isoformat(),
@@ -122,9 +174,9 @@ def build_forecast_response(lat, lon, timezone, capacity_kw, approximate):
 
 
 @app.get("/forecast")
-def get_forecast():
+def get_forecast(user: dict = Depends(get_current_user)):
     return build_forecast_response(
-        config.LAT, config.LON, config.TIMEZONE, config.SITE_CAPACITY_KW, False
+        config.LAT, config.LON, config.TIMEZONE, config.SITE_CAPACITY_KW, False, user["id"]
     )
 
 
@@ -134,12 +186,13 @@ def get_what_if_forecast(
     longitude: float = Query(..., ge=-180, le=180),
     capacity_kw: float = Query(..., gt=0, le=1_000_000),
     timezone: str = Query("auto", min_length=1, max_length=64),
+    user: dict = Depends(get_current_user),
 ):
-    return build_forecast_response(latitude, longitude, timezone, capacity_kw, True)
+    return build_forecast_response(latitude, longitude, timezone, capacity_kw, True, user["id"])
 
 
 @app.get("/feature-importance")
-def get_feature_importance():
+def get_feature_importance(user: dict = Depends(get_current_user)):
     model = model_service.get_model()
     raw_importance = [float(x) for x in model.feature_importances_]
     total_importance = sum(raw_importance)
@@ -153,5 +206,5 @@ def get_feature_importance():
 
 
 @app.get("/history")
-def get_history(limit: int = 10):
-    return {"runs": database.get_recent_runs(limit)}
+def get_history(limit: int = Query(10, ge=1, le=50), user: dict = Depends(get_current_user)):
+    return {"runs": database.get_recent_runs(limit, user["id"])}

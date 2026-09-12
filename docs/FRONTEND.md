@@ -23,7 +23,8 @@ matter rather than reach for defaults. Concretely:
 ```
 frontend/src/
   api.js                     fetch wrappers for /forecast, /feature-importance, /history
-  App.jsx                    top-level layout, data loading, error/loading states
+   App.jsx                    auth gate, dashboard layout, data loading, states
+   components/AuthScreen.jsx  login and account creation experience
   index.css                  design tokens (CSS variables) + base styles
   components/
     StatusStrip.jsx          next-hour / peak / window / alert summary readouts
@@ -80,6 +81,55 @@ The dashboard includes these user-facing workflows:
 
 The browser locale controls display formatting, while the selected site's
 timezone is applied to forecast timestamps and CSV export when available.
+
+## First-time user workflow
+
+The public screen introduces GreenCast before asking for credentials. A user can
+create an account with a display name, unique username, and password of at
+least eight characters. After signup or login, the frontend stores the returned
+bearer session locally, validates it with `/auth/me` on reload, and sends the
+token with every protected dashboard request. Sign out removes the stored
+session and returns to the public screen.
+
+The dashboard is intentionally organized in reading order: forecast status,
+site mode, display controls, primary chart or exact-value table, capacity
+utilization, recommended actions, saved-run comparison, feature importance,
+and the forecast guide. This lets a first-time user move from "what is
+happening" to "what should I do" to "why did the model decide that".
+
+## Feature usage
+
+- **Chart/table:** use `Chart` for trends and uncertainty; use `Table` for
+   exact hourly values, possible ranges, capacity use, and actions.
+- **24/48/72-hour controls:** shorten the window to focus on immediate planning
+   or keep all 72 hours for broader scheduling.
+- **CSV export:** downloads the currently selected window with site-local
+   timestamps and the same forecast fields shown in the table.
+- **Capacity utilization:** divides predicted output by the selected capacity;
+   it is an operating-context metric, not an additional model prediction.
+- **Alert explanations:** connect each `curtail` or `backup_dispatch` marker to
+   the threshold that triggered it. Alerts are only generated during daytime.
+- **Timezone/freshness:** timestamps use the selected site's timezone when the
+   API provides one, and the header reports when the current browser session
+   refreshed its data.
+- **Forecast comparison:** compares same-horizon rows only. Plant 1 runs are
+   compared with Plant 1; What-if runs must match location and capacity.
+- **Model guide and importance:** explain the uncertainty band, action flags,
+   and relative feature influence without presenting feature importance as
+   physical causation.
+
+## Authentication experience
+
+The application opens on a public GreenCast welcome screen. Users can create
+an account with a display name, unique username, and password of at least eight
+characters, or log in with an existing username and password. The API returns
+an expiring bearer token; the frontend stores the session locally, validates it
+on reload, sends it with dashboard requests, and clears it on sign out.
+
+The forecast dashboard and all saved-run data are unavailable until login.
+What-if site settings, forecast tables, CSV export, utilization, alerts,
+comparison, and model guidance remain available after authentication exactly as
+before. The frontend does not store or inspect the password after submission.
 
 ## Verified live, and real bugs found + fixed
 

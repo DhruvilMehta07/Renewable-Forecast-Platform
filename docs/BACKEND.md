@@ -4,13 +4,14 @@
 
 ```
 backend/
+  auth.py            password hashing, signed bearer tokens, and auth dependencies
   config.py           site constants, feature order, calibration values, thresholds
   weather_client.py   Open-Meteo fetch (no API key required)
   features.py         live feature assembly - counterpart to ml/build_forecast_dataset.py
   model_service.py     loads ml/models/lightgbm_model.joblib, predicts, looks up intervals
   decision_engine.py   rule-based curtail/backup_dispatch/normal flags
   database.py         SQLite persistence of each forecast run
-  main.py             FastAPI app: /health, /forecast, /forecast/what-if, /feature-importance, /history
+  main.py             FastAPI app: auth, protected forecast routes, and history
   tests/test_forecast.py
 ```
 
@@ -28,6 +29,27 @@ backend.main:app` from the repo root or `cd backend && uvicorn main:app`.
 | `GET /forecast/what-if` | Approximate capacity-scaled forecast for a selected place and capacity |
 | `GET /feature-importance` | Live model's `feature_importances_`, for the dashboard's explainability panel |
 | `GET /history?limit=10` | Recent forecast runs from SQLite, including saved forecast rows for comparison |
+
+### Authentication
+
+The dashboard data endpoints require an `Authorization: Bearer <token>` header.
+The public auth endpoints are:
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /auth/signup` | Create a user with `username`, `display_name`, and a password of at least 8 characters |
+| `POST /auth/login` | Validate credentials and return an expiring signed bearer token |
+| `GET /auth/me` | Validate the current token and return the public user profile |
+
+Passwords are hashed with PBKDF2-HMAC-SHA256 and a per-user random salt; raw
+passwords are never stored. Tokens expire after eight hours. Set
+`GREENCAST_AUTH_SECRET` to a long random value in any shared or deployed
+environment. The development fallback secret is intentionally only for local
+use and must be replaced outside development.
+
+Authorization is user-scoped: saved forecast runs are associated with the
+authenticated user, and `/history` only returns that user's runs. The API also
+returns `401` for missing or invalid tokens and `409` for duplicate usernames.
 
 ## Two real bugs found by the test suite before they could reach the API
 
@@ -132,11 +154,12 @@ unchanged.
 
 ## Testing
 
-11 tests in `backend/tests/test_forecast.py`, all passing:
+14 tests in `backend/tests/test_forecast.py`, all passing:
 response shape (72 rows, horizons 1–72 in order), value sanity (bounds bracket
 the prediction, decision is one of the 3 valid values), persistence
 (a forecast run and its saved forecast rows are retrievable via `/history`), feature importance sums to 1.0,
-nighttime predictions are exact 0, and a simulated weather-API failure returns
+nighttime predictions are exact 0, authentication and user-scoped history are
+enforced, and a simulated weather-API failure returns
 a clean `502` instead of a raw stack trace. The What-if endpoint is also tested
 for approximate mode, capacity scaling, output capping, and five-day weather
 coverage.
