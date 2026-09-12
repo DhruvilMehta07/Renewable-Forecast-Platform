@@ -101,6 +101,36 @@ def test_weather_request_keeps_five_day_coverage(monkeypatch):
     assert captured["forecast_days"] == 5
 
 
+def test_geocode_returns_selectable_locations(monkeypatch):
+    monkeypatch.setattr(weather_client, "geocode_place", lambda query: [{
+        "name": "Mumbai",
+        "latitude": 19.076,
+        "longitude": 72.877,
+        "country": "India",
+        "admin1": "Maharashtra",
+        "timezone": "Asia/Kolkata",
+    }])
+
+    response = TestClient(main.app).get("/geocode?query=Mumbai")
+    assert response.status_code == 200
+    assert response.json()["results"][0]["timezone"] == "Asia/Kolkata"
+
+
+def test_geocode_no_results_returns_404(monkeypatch):
+    monkeypatch.setattr(weather_client, "geocode_place", lambda query: [])
+    response = TestClient(main.app).get("/geocode?query=UnknownPlace")
+    assert response.status_code == 404
+
+
+def test_geocode_failure_returns_502(monkeypatch):
+    def broken(query):
+        raise ConnectionError("simulated geocoding failure")
+
+    monkeypatch.setattr(weather_client, "geocode_place", broken)
+    response = TestClient(main.app).get("/geocode?query=Mumbai")
+    assert response.status_code == 502
+
+
 def test_feature_importance_sums_to_one():
     client = TestClient(main.app)
     resp = client.get("/feature-importance")

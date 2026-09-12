@@ -8,6 +8,7 @@ the final hourly value returned by a four-day request.
 import requests
 
 OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
+GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search"
 
 
 def fetch_weather(lat: float, lon: float, timezone: str = "auto") -> dict:
@@ -22,3 +23,18 @@ def fetch_weather(lat: float, lon: float, timezone: str = "auto") -> dict:
     resp = requests.get(OPEN_METEO_URL, params=params, timeout=10)
     resp.raise_for_status()
     return resp.json()
+
+
+def geocode_place(query: str, count: int = 5) -> list[dict]:
+    resp = requests.get(
+        GEOCODING_URL,
+        params={
+            "name": query,
+            "count": count,
+            "language": "en",
+            "format": "json",
+        },
+        timeout=10,
+    )
+    resp.raise_for_status()
+    return resp.json().get("results", [])

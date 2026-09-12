@@ -49,3 +49,15 @@ not an unnoticed regression. We accepted it because consistent training and live
 inputs are more defensible for the current no-SCADA prototype. If SCADA is added,
 the three anchors should be restored only after collecting historical SCADA data,
 rebuilding the training table, and retraining the model.
+
+## Place-based What-if input
+
+The What-if dashboard originally required latitude and longitude to be entered
+manually. This was replaced with an Open-Meteo Geocoding search: users enter a
+city, landmark, area, or country, select a matching result, and the application
+uses the returned coordinates and timezone for the approximate forecast. This
+reduces input friction and avoids invalid or ambiguous coordinate entry while
+keeping the resolved location visible to the user.
+
+The selected place does not make the model site-generalized. The result remains a
+capacity-scaled exploratory estimate from the Plant 1-trained LightGBM model.

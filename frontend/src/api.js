@@ -15,13 +15,18 @@ export function getForecast() {
   return getJSON("/forecast");
 }
 
-export function getWhatIfForecast({ latitude, longitude, capacityKw }) {
+export function getWhatIfForecast({ latitude, longitude, capacityKw, timezone = "auto" }) {
   const params = new URLSearchParams({
     latitude: String(latitude),
     longitude: String(longitude),
     capacity_kw: String(capacityKw),
+    timezone,
   });
   return getJSON(`/forecast/what-if?${params}`);
+}
+
+export function getGeocodeResults(query) {
+  return getJSON(`/geocode?query=${encodeURIComponent(query)}`);
 }
 
 export function getFeatureImportance() {

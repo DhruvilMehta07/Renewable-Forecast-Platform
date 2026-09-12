@@ -24,7 +24,8 @@ backend.main:app` from the repo root or `cd backend && uvicorn main:app`.
 |---|---|
 | `GET /health` | `{"status": "ok"}` |
 | `GET /forecast` | 72-hour forecast: prediction, interval band, `is_daytime`, decision flag per hour |
-| `GET /forecast/what-if` | Approximate capacity-scaled forecast for a latitude, longitude, and capacity |
+| `GET /geocode?query=Mumbai` | Up to five matching places with coordinates and timezone |
+| `GET /forecast/what-if` | Approximate capacity-scaled forecast for a selected place and capacity |
 | `GET /feature-importance` | Live model's `feature_importances_`, for the dashboard's explainability panel |
 | `GET /history?limit=10` | Recent forecast runs from SQLite |
 
@@ -105,7 +106,11 @@ validate the model.
 
 ## What-if site mode
 
-`GET /forecast/what-if` accepts `latitude`, `longitude`, and `capacity_kw`.
+The frontend first calls `/geocode?query=...` through the Open-Meteo Geocoding
+API. The user selects a result, which supplies latitude, longitude, and timezone;
+the user only needs to provide capacity. Then
+`GET /forecast/what-if` accepts the selected coordinates, timezone, and
+`capacity_kw`.
 It fetches weather for those coordinates, calculates solar position with pvlib,
 runs the Plant 1-trained LightGBM model, and scales predictions and uncertainty
 by `requested capacity / Plant 1 reference capacity`. Outputs are capped at the

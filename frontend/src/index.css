@@ -86,9 +86,18 @@ a, button { font-family: inherit; }
 .mode-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
 .mode-tab { background: transparent; border: 1px solid var(--border); color: var(--text-muted); padding: 8px 14px; border-radius: 6px; cursor: pointer; }
 .mode-tab.active { color: var(--text-primary); border-color: var(--accent-grid); background: var(--bg-panel-raised); }
-.what-if-form { display: grid; grid-template-columns: repeat(3, 1fr) auto; gap: 12px; align-items: end; }
+.what-if-form { display: grid; grid-template-columns: minmax(280px, 2fr) minmax(140px, 1fr) auto; gap: 12px; align-items: end; }
 .what-if-form label { display: grid; gap: 6px; color: var(--text-muted); font-size: 12px; }
 .what-if-form input { width: 100%; background: var(--bg-panel-raised); border: 1px solid var(--border); border-radius: 6px; color: var(--text-primary); padding: 9px 10px; font: inherit; }
+.inline-input { display: flex; gap: 8px; }
+.search-btn { background: var(--bg-panel-raised); border: 1px solid var(--border); border-radius: 6px; color: var(--text-primary); padding: 8px 12px; cursor: pointer; white-space: nowrap; }
+.search-btn:disabled { opacity: 0.5; cursor: default; }
+.location-results { display: grid; gap: 6px; margin-top: 12px; }
+.location-result { display: grid; gap: 3px; text-align: left; background: var(--bg-panel-raised); border: 1px solid var(--border); border-radius: 6px; color: var(--text-primary); padding: 9px 12px; cursor: pointer; }
+.location-result:hover { border-color: var(--accent-grid); }
+.location-result span, .selected-location { color: var(--text-muted); font-size: 12px; }
+.selected-location { margin-top: 12px; }
+.form-error { color: var(--accent-alert); font-size: 12px; margin-top: 10px; }
 @media (max-width: 720px) { .what-if-form { grid-template-columns: 1fr; } }
 
 .status-strip {

@@ -45,9 +45,11 @@ The dashboard provides two modes:
 - **Plant 1:** the default validated mode using fixed Plant 1 coordinates,
   calibrated intervals, and the live LightGBM model.
 - **What-if site:** accepts latitude, longitude, and capacity in kW, fetches
-  location-specific weather, and displays a capacity-scaled estimate. The UI
-  labels this result as approximate because the model was trained on Plant 1,
-  not arbitrary sites.
+  location-specific weather, and displays a capacity-scaled estimate. In the
+  actual UI, users search for a city, landmark, area, or country; they select a
+  geocoded result rather than entering coordinates manually. The UI labels the
+  result as approximate because the model was trained on Plant 1, not arbitrary
+  sites.
 
 ## Verified live, and real bugs found + fixed
 

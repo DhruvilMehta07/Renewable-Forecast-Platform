@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { getForecast, getFeatureImportance, getWhatIfForecast } from "./api";
+import { getForecast, getFeatureImportance, getWhatIfForecast, getGeocodeResults } from "./api";
 import StatusStrip from "./components/StatusStrip";
 import ForecastChart from "./components/ForecastChart";
 import AlertsPanel from "./components/AlertsPanel";
@@ -19,16 +19,22 @@ export default function App() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState("plant");
-  const [site, setSite] = useState({ latitude: "14.5", longitude: "78.0", capacityKw: "29150" });
+  const [site, setSite] = useState({ capacityKw: "5000" });
+  const [locationQuery, setLocationQuery] = useState("");
+  const [locations, setLocations] = useState([]);
+  const [selectedLocation, setSelectedLocation] = useState(null);
+  const [searching, setSearching] = useState(false);
+  const [locationError, setLocationError] = useState(null);
   const [approximate, setApproximate] = useState(false);
 
   const load = useCallback(async (selectedMode = mode) => {
     setLoading(true);
     setError(null);
     try {
+      if (selectedMode === "whatif" && !selectedLocation) return;
       const forecastRequest = selectedMode === "plant"
         ? getForecast()
-        : getWhatIfForecast(site);
+        : getWhatIfForecast({ ...site, ...selectedLocation });
       const [forecastRes, importanceRes] = await Promise.all([
         forecastRequest,
         getFeatureImportance(),
@@ -42,14 +48,39 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  }, [mode, site]);
+  }, [mode, site, selectedLocation]);
 
   useEffect(() => { load(); }, [load]);
 
   function submitWhatIf(event) {
     event.preventDefault();
+    if (!selectedLocation) {
+      setLocationError("Search for and select a location first.");
+      return;
+    }
     setMode("whatif");
     load("whatif");
+  }
+
+  async function searchLocations(event) {
+    event.preventDefault();
+    const query = locationQuery.trim();
+    if (query.length < 2) {
+      setLocationError("Enter at least 2 characters.");
+      return;
+    }
+    setSearching(true);
+    setLocationError(null);
+    setLocations([]);
+    try {
+      const response = await getGeocodeResults(query);
+      setLocations(response.results);
+      if (!response.results.length) setLocationError("No matching location found.");
+    } catch (error) {
+      setLocationError(error.message);
+    } finally {
+      setSearching(false);
+    }
   }
 
   return (
@@ -81,12 +112,30 @@ export default function App() {
         </div>
         {mode === "whatif" && (
           <form className="what-if-form" onSubmit={submitWhatIf}>
-            <label>Latitude<input type="number" min="-90" max="90" step="any" value={site.latitude} onChange={(e) => setSite({ ...site, latitude: e.target.value })} required /></label>
-            <label>Longitude<input type="number" min="-180" max="180" step="any" value={site.longitude} onChange={(e) => setSite({ ...site, longitude: e.target.value })} required /></label>
+            <label className="location-search">Location
+              <span className="inline-input">
+                <input type="search" placeholder="City, landmark, or country" value={locationQuery} onChange={(e) => setLocationQuery(e.target.value)} />
+                <button className="search-btn" type="button" onClick={searchLocations} disabled={searching}>{searching ? "Searching..." : "Search"}</button>
+              </span>
+            </label>
             <label>Capacity (kW)<input type="number" min="1" max="1000000" step="any" value={site.capacityKw} onChange={(e) => setSite({ ...site, capacityKw: e.target.value })} required /></label>
             <button className="refresh-btn" type="submit" disabled={loading}>Estimate site</button>
           </form>
         )}
+        {mode === "whatif" && locations.length > 0 && (
+          <div className="location-results" role="listbox" aria-label="Location results">
+            {locations.map((location) => (
+              <button type="button" key={`${location.latitude}-${location.longitude}`} className="location-result" onClick={() => { setSelectedLocation(location); setLocations([]); setLocationError(null); }}>
+                <strong>{location.name}</strong>
+                <span>{[location.admin1, location.country].filter(Boolean).join(", ")} · {location.timezone}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        {mode === "whatif" && selectedLocation && (
+          <div className="selected-location">Selected: <strong>{selectedLocation.name}</strong> · {selectedLocation.latitude.toFixed(3)}, {selectedLocation.longitude.toFixed(3)} · {selectedLocation.timezone}</div>
+        )}
+        {mode === "whatif" && locationError && <div className="form-error">{locationError}</div>}
       </section>
 
       {loading && !forecast && <div className="loading">Fetching forecast\u2026</div>}

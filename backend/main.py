@@ -22,6 +22,32 @@ def health():
     return {"status": "ok"}
 
 
+@app.get("/geocode")
+def geocode(query: str = Query(..., min_length=2, max_length=120)):
+    query = query.strip()
+    if len(query) < 2:
+        raise HTTPException(status_code=422, detail="Location query must contain at least 2 characters")
+    try:
+        results = weather_client.geocode_place(query)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Geocoding failed: {e}")
+    if not results:
+        raise HTTPException(status_code=404, detail="No matching location found")
+    return {
+        "results": [
+            {
+                "name": result.get("name"),
+                "latitude": result.get("latitude"),
+                "longitude": result.get("longitude"),
+                "country": result.get("country"),
+                "admin1": result.get("admin1"),
+                "timezone": result.get("timezone"),
+            }
+            for result in results
+        ]
+    }
+
+
 def build_forecast_response(lat, lon, timezone, capacity_kw, approximate):
     try:
         weather_json = weather_client.fetch_weather(lat, lon, timezone)
@@ -87,8 +113,9 @@ def get_what_if_forecast(
     latitude: float = Query(..., ge=-90, le=90),
     longitude: float = Query(..., ge=-180, le=180),
     capacity_kw: float = Query(..., gt=0, le=1_000_000),
+    timezone: str = Query("auto", min_length=1, max_length=64),
 ):
-    return build_forecast_response(latitude, longitude, "auto", capacity_kw, True)
+    return build_forecast_response(latitude, longitude, timezone, capacity_kw, True)
 
 
 @app.get("/feature-importance")
