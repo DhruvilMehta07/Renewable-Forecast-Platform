@@ -19,7 +19,35 @@ function getNightSegments(data) {
 
 function formatTick(iso) {
   const d = new Date(iso);
-  return d.toLocaleString(undefined, { weekday: "short", hour: "numeric" });
+  return {
+    date: d.toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric" }),
+    time: d.toLocaleString(undefined, { hour: "numeric", minute: "2-digit" }),
+  };
+}
+
+function formatPowerTick(value) {
+  return Math.round(value).toLocaleString();
+}
+
+function ForecastXAxisTick({ x, y, payload, data }) {
+  const row = data[Number(payload.value)];
+  if (!row) return null;
+  const label = formatTick(row.target_time);
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <text textAnchor="middle" fill="#94a5af" fontSize={10}>
+        <tspan x="0" dy="12">{label.date}</tspan>
+        <tspan x="0" dy="13" fill="#d7dee8">{label.time}</tspan>
+      </text>
+    </g>
+  );
+}
+
+function formatTooltipDate(iso) {
+  return new Date(iso).toLocaleString(undefined, {
+    weekday: "short", month: "short", day: "numeric", year: "numeric",
+    hour: "numeric", minute: "2-digit",
+  });
 }
 
 function CustomTooltip({ active, payload }) {
@@ -30,10 +58,11 @@ function CustomTooltip({ active, payload }) {
       background: "#1a2436", border: "1px solid #253247", borderRadius: 6,
       padding: "10px 14px", fontSize: 13, fontFamily: "IBM Plex Sans, sans-serif",
     }}>
-      <div style={{ color: "#7c8798", marginBottom: 4 }}>{formatTick(row.target_time)} (+{row.horizon_hours}h)</div>
-      <div className="mono" style={{ color: "#e8a33d" }}>{Math.round(row.predicted_ac_power).toLocaleString()} kW</div>
+      <div style={{ color: "#d7dee8", marginBottom: 8, fontWeight: 500 }}>{formatTooltipDate(row.target_time)}</div>
+      <div style={{ color: "#7c8798", marginBottom: 4 }}>Forecast at +{row.horizon_hours} hours</div>
+      <div className="mono" style={{ color: "#e8a33d", fontSize: 16 }}>{Math.round(row.predicted_ac_power).toLocaleString()} kW</div>
       <div className="mono" style={{ color: "#7c8798", fontSize: 11 }}>
-        range {Math.round(row.lower_bound).toLocaleString()}{"\u2013"}{Math.round(row.upper_bound).toLocaleString()}
+        Expected range: {Math.round(row.lower_bound).toLocaleString()}{"\u2013"}{Math.round(row.upper_bound).toLocaleString()} kW
       </div>
       {row.decision !== "normal" && (
         <div style={{ color: row.decision === "curtail" ? "#e8a33d" : "#e85d4c", marginTop: 4, fontWeight: 500 }}>
@@ -59,8 +88,11 @@ export default function ForecastChart({ forecast }) {
 
   return (
     <div className="panel">
-      <h2>72-hour generation forecast</h2>
-      <p className="panel-note">Shaded band is the model's calibrated prediction interval. Darker regions are nighttime.</p>
+      <div className="section-heading">
+        <div><div className="eyebrow">Primary signal</div><h2>Solar generation forecast</h2></div>
+        <span className="chart-horizon">Next 72 hours</span>
+      </div>
+      <p className="panel-note">The amber line is expected output. The shaded band is the model's possible range; darker areas indicate nighttime.</p>
       <ResponsiveContainer width="100%" height={340}>
         <ComposedChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
           <CartesianGrid stroke="#253247" strokeDasharray="3 3" vertical={false} />
@@ -71,11 +103,17 @@ export default function ForecastChart({ forecast }) {
             dataKey="index"
             type="category"
             ticks={data.filter((_, i) => i % 12 === 0).map((r) => r.index)}
-            tickFormatter={(idx) => formatTick(data[idx].target_time)}
+            tick={<ForecastXAxisTick data={data} />}
+            stroke="#7c8798"
+            height={44}
+          />
+          <YAxis
             stroke="#7c8798"
             fontSize={11}
+            width={78}
+            tickFormatter={formatPowerTick}
+            label={{ value: "Power (kW)", angle: -90, position: "insideLeft", fill: "#94a5af", fontSize: 11, dy: 38 }}
           />
-          <YAxis stroke="#7c8798" fontSize={11} width={50} tickFormatter={(v) => `${Math.round(v / 1000)}k`} />
           <Tooltip content={<CustomTooltip />} />
           <Area dataKey="upper_bound" stroke="none" fill="#3fbfad" fillOpacity={0.08} isAnimationActive={false} />
           <Area dataKey="lower_bound" stroke="none" fill="#0d1420" fillOpacity={1} isAnimationActive={false} />
@@ -91,9 +129,9 @@ export default function ForecastChart({ forecast }) {
         </ComposedChart>
       </ResponsiveContainer>
       <div className="legend-row">
-        <span><span className="legend-dot" style={{ background: "#e8a33d" }} />Predicted generation</span>
-        <span><span className="legend-dot" style={{ background: "#e85d4c" }} />Backup dispatch flag</span>
-        <span><span className="legend-dot" style={{ background: "#e8a33d", opacity: 0.6 }} />Curtail flag</span>
+        <span><span className="legend-dot" style={{ background: "#e8a33d" }} />Expected output</span>
+        <span><span className="legend-dot" style={{ background: "#3fbfad", opacity: 0.5 }} />Possible range</span>
+        <span><span className="legend-dot" style={{ background: "#e85d4c" }} />Action recommended</span>
       </div>
     </div>
   );

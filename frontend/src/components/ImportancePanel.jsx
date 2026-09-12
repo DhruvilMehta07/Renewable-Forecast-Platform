@@ -23,8 +23,11 @@ export default function ImportancePanel({ importance }) {
 
   return (
     <div className="panel">
-      <h2>What drives the forecast</h2>
-      <p className="panel-note">Relative influence of each input on the trained model's predictions.</p>
+      <div className="section-heading">
+        <div><div className="eyebrow">Model transparency</div><h2>What drives the forecast</h2></div>
+        <span className="help-tip" title="These percentages show relative model influence, not causation or importance in the physical system." aria-label="About feature importance">?</span>
+      </div>
+      <p className="panel-note">Relative influence of each input on the model's predictions. Higher bars mean the model relied on that input more often.</p>
       <ResponsiveContainer width="100%" height={280}>
         <BarChart data={data} layout="vertical" margin={{ left: 24, right: 16 }}>
           <CartesianGrid stroke="#253247" strokeDasharray="3 3" horizontal={false} />

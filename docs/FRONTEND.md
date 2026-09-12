@@ -26,9 +26,13 @@ frontend/src/
   App.jsx                    top-level layout, data loading, error/loading states
   index.css                  design tokens (CSS variables) + base styles
   components/
-    StatusStrip.jsx          next-hour / 72h-peak / active-alert-count readouts
-    ForecastChart.jsx        band + line chart, night shading, decision-flag markers
-    AlertsPanel.jsx          list of flagged hours
+    StatusStrip.jsx          next-hour / peak / window / alert summary readouts
+    ForecastChart.jsx        band + line chart, night shading, readable time ticks
+    ForecastTable.jsx        exact hourly values, ranges, utilization, and actions
+    UtilizationChart.jsx     expected output as a percentage of site capacity
+    ComparisonPanel.jsx      changes from the previous saved forecast run
+    ModelGuide.jsx           plain-language interpretation guide
+    AlertsPanel.jsx          flagged hours with threshold explanations
     ImportancePanel.jsx      feature importance bar chart, from the live model
 ```
 
@@ -50,6 +54,32 @@ The dashboard provides two modes:
   geocoded result rather than entering coordinates manually. The UI labels the
   result as approximate because the model was trained on Plant 1, not arbitrary
   sites.
+
+## Dashboard capabilities
+
+The dashboard includes these user-facing workflows:
+
+1. **Forecast summary:** next-hour output, 72-hour peak, forecast window, and
+   active alert count, with capacity use where available.
+2. **Chart and table views:** the chart shows trends and uncertainty; the table
+   provides exact hourly output, range, capacity use, and recommended action.
+3. **Time-window controls:** focus on the next 24, 48, or 72 hours for readable
+   mobile views and short-term planning.
+4. **CSV export:** download the selected window with local-time timestamps,
+   power bounds, daylight state, and decision flags.
+5. **Capacity utilization:** see expected generation as a percentage of the
+   selected site's capacity.
+6. **Action explanations:** alerts explain the 90% curtailment and 10% daytime
+   backup-dispatch thresholds in plain language.
+7. **Timezone and freshness context:** the header shows forecast mode, issue
+   time, site timezone, and time since the dashboard refreshed.
+8. **Forecast comparison:** after two saved runs, compare same-horizon output
+   changes, largest change, and materially changed hours.
+9. **Interpretation help:** legends, help controls, feature-importance wording,
+   and a forecast guide explain the dashboard without requiring ML knowledge.
+
+The browser locale controls display formatting, while the selected site's
+timezone is applied to forecast timestamps and CSV export when available.
 
 ## Verified live, and real bugs found + fixed
 

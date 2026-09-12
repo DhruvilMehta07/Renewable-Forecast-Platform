@@ -26,6 +26,10 @@ Full results, LightGBM tuning details, feature importance, and prediction interv
 
 Full breakdown of what's used at each step: [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
+The GreenCast dashboard provides chart and table views, 24/48/72-hour focus
+controls, CSV export, capacity utilization, alert explanations, timezone and
+freshness context, saved-run comparison, and plain-language model guidance.
+
 ## Data
 
 Kaggle ["Solar Power Generation Data"](https://www.kaggle.com/datasets/anikannal/solar-power-generation-data) (anikannal) — Plant 1, 15-minute intervals, 34 days. Two files: per-inverter generation, plant-level weather sensors.
@@ -46,7 +50,6 @@ docs/       ideation report, project plan, decisions log, and every sprint's fin
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-
 python3 ml/build_forecast_dataset.py   # builds data/plant1_forecast_dataset.csv
 python3 ml/eda.py                       # regenerates docs/eda/*.png and stats
 python3 ml/train_models.py              # trains baseline, XGBoost, and tuned LightGBM

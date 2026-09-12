@@ -29,6 +29,21 @@ def geocode(query: str = Query(..., min_length=2, max_length=120)):
         raise HTTPException(status_code=422, detail="Location query must contain at least 2 characters")
     try:
         results = weather_client.geocode_place(query)
+        if not results:
+            fallback_terms = [term for term in query.split() if len(term) >= 3]
+            fallback_results = []
+            seen_locations = set()
+            for term in fallback_terms:
+                for result in weather_client.geocode_place(term, count=3):
+                    location_key = (result.get("latitude"), result.get("longitude"))
+                    if location_key not in seen_locations:
+                        seen_locations.add(location_key)
+                        fallback_results.append(result)
+                    if len(fallback_results) == 3:
+                        break
+                if len(fallback_results) == 3:
+                    break
+            results = fallback_results
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Geocoding failed: {e}")
     if not results:
@@ -86,7 +101,12 @@ def build_forecast_response(lat, lon, timezone, capacity_kw, approximate):
             ),
         })
 
-    database.save_run(issue_time.isoformat(), forecast_rows)
+    database.save_run(
+        issue_time.isoformat(),
+        forecast_rows,
+        site={"lat": lat, "lon": lon, "timezone": resolved_timezone, "capacity_kw": capacity_kw},
+        mode="what_if" if approximate else "plant_1",
+    )
     return {
         "issue_time": issue_time.isoformat(),
         "site": {

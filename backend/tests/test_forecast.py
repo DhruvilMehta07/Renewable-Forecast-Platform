@@ -64,6 +64,7 @@ def test_forecast_saved_to_history(monkeypatch, tmp_path):
     resp = client.get("/history")
     assert resp.status_code == 200
     assert len(resp.json()["runs"]) == 1
+    assert len(resp.json()["runs"][0]["forecast"]) == 72
 
 
 def test_what_if_forecast_is_approximate_and_capacity_scaled(monkeypatch, tmp_path):
@@ -117,9 +118,31 @@ def test_geocode_returns_selectable_locations(monkeypatch):
 
 
 def test_geocode_no_results_returns_404(monkeypatch):
-    monkeypatch.setattr(weather_client, "geocode_place", lambda query: [])
+    monkeypatch.setattr(weather_client, "geocode_place", lambda query, count=5: [])
     response = TestClient(main.app).get("/geocode?query=UnknownPlace")
     assert response.status_code == 404
+
+
+def test_geocode_falls_back_to_query_terms(monkeypatch):
+    def geocode(query, count=5):
+        if query == "Dhirubhai Ambani":
+            return []
+        return [
+            {
+                "name": f"{query} result {index}",
+                "latitude": float(index),
+                "longitude": float(index),
+                "country": "India",
+                "admin1": None,
+                "timezone": "Asia/Kolkata",
+            }
+            for index in range(1, 5)
+        ]
+
+    monkeypatch.setattr(weather_client, "geocode_place", geocode)
+    response = TestClient(main.app).get("/geocode?query=Dhirubhai%20Ambani")
+    assert response.status_code == 200
+    assert len(response.json()["results"]) == 3
 
 
 def test_geocode_failure_returns_502(monkeypatch):

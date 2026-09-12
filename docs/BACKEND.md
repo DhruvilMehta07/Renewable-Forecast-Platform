@@ -27,7 +27,7 @@ backend.main:app` from the repo root or `cd backend && uvicorn main:app`.
 | `GET /geocode?query=Mumbai` | Up to five matching places with coordinates and timezone |
 | `GET /forecast/what-if` | Approximate capacity-scaled forecast for a selected place and capacity |
 | `GET /feature-importance` | Live model's `feature_importances_`, for the dashboard's explainability panel |
-| `GET /history?limit=10` | Recent forecast runs from SQLite |
+| `GET /history?limit=10` | Recent forecast runs from SQLite, including saved forecast rows for comparison |
 
 ## Two real bugs found by the test suite before they could reach the API
 
@@ -121,12 +121,21 @@ the model was trained on one plant and does not use tilt, azimuth, efficiency,
 terrain, or technology details. Plant 1 mode remains authoritative for reported
 model performance.
 
+## History contract
+
+Each successful forecast request is stored in SQLite. The history response
+contains the run identifier, issue time, creation time, and the saved
+`forecast` array, plus the site and mode used for that run. The frontend only
+compares runs with the same mode, location, and capacity. The forecast, site,
+and mode fields are additive response fields; existing history metadata remains
+unchanged.
+
 ## Testing
 
-7 tests in `backend/tests/test_forecast.py`, all passing:
+11 tests in `backend/tests/test_forecast.py`, all passing:
 response shape (72 rows, horizons 1–72 in order), value sanity (bounds bracket
 the prediction, decision is one of the 3 valid values), persistence
-(a forecast run is retrievable via `/history`), feature importance sums to 1.0,
+(a forecast run and its saved forecast rows are retrievable via `/history`), feature importance sums to 1.0,
 nighttime predictions are exact 0, and a simulated weather-API failure returns
 a clean `502` instead of a raw stack trace. The What-if endpoint is also tested
 for approximate mode, capacity scaling, output capping, and five-day weather
