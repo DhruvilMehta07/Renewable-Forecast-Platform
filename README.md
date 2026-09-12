@@ -6,7 +6,7 @@ Full original concept: [`docs/Ideation_Report_TheFinalCommit.pdf`](docs/Ideation
 
 ## Status
 
-**Sprint 3 of 8 complete.** Data pipeline, EDA, modeling, and the FastAPI backend are done. Frontend dashboard (Sprint 4) is next. Full sprint-by-sprint status: [`docs/Project_Plan.md`](docs/Project_Plan.md).
+**Sprint 4 of 8 complete.** Data pipeline, EDA, modeling, backend, and the frontend dashboard are all built. The dashboard's build is verified but not yet visually confirmed in this environment (see `docs/FRONTEND.md`) — a 2nd site (Sprint 5, stretch) or deployment (Sprint 6) is next. Full sprint-by-sprint status: [`docs/Project_Plan.md`](docs/Project_Plan.md).
 
 ## Model performance
 
@@ -35,8 +35,8 @@ Kaggle ["Solar Power Generation Data"](https://www.kaggle.com/datasets/anikannal
 data/       raw source CSVs (generated dataset is gitignored — regenerate with the script below)
 ml/         data pipeline, EDA, model training, and trained model artifacts
 backend/    FastAPI service — forecast, feature importance, and history endpoints
-frontend/   React dashboard (Sprint 4)
-docs/       ideation report, project plan, decisions log, EDA + modeling + backend findings and figures
+frontend/   React dashboard — forecast chart, alerts, feature importance
+docs/       ideation report, project plan, decisions log, and every sprint's findings/figures
 ```
 
 ## Setup
@@ -53,6 +53,9 @@ python3 ml/train_models.py              # trains both models, saves ml/models/*.
 cd backend
 uvicorn main:app --reload               # serves the API at http://localhost:8000
 pytest tests/                           # runs the backend test suite (mocked weather, no network needed)
+
+cd ../frontend
+npm install && npm run dev              # serves the dashboard, defaults to http://localhost:5173
 ```
 
 ## Key decisions and limitations

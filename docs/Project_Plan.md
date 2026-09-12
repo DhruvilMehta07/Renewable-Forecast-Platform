@@ -28,8 +28,8 @@ Forecast 24–72hr solar/wind generation per site and recommend grid actions (cu
 | 1.5 | EDA + validation | ✅ Done | `ml/eda.py`, `docs/EDA.md`, `docs/eda/*.png`. Confirmed zero-inflation is physical, no feature exceeds VIF 10, found + documented residual NaNs in 3 columns |
 | 2 | Modeling | ✅ Done | `ml/train_models.py`. XGBoost beats linear baseline on every metric (MAPE 7.9% vs 20.5%). Feature importance shows target-time weather/astronomy drives ~99% of predictions. Full writeup: `docs/MODELING.md` |
 | 3 | Backend | ✅ Done | FastAPI (`backend/`): `/forecast`, `/feature-importance`, `/history`. 2 real bugs caught by tests before reaching the API — see `docs/BACKEND.md` |
-| 4 | Frontend | ⬜ Next | React dashboard: forecast chart w/ band, alerts panel, feature importance panel |
-| 5 | 2nd site (stretch) | ⬜ | Repeat pipeline for a 2nd site if ahead of schedule |
+| 4 | Frontend | ✅ Done (pending visual confirmation) | React dashboard (`frontend/`): forecast chart w/ band + night shading, alerts panel, feature importance panel. Build verified; visual rendering not yet confirmed in this environment — see `docs/FRONTEND.md` |
+| 5 | 2nd site (stretch) | ⬜ Next | Repeat pipeline for a 2nd site if ahead of schedule |
 | 6 | Deploy | ⬜ | Live public link, weather-API fallback caching |
 | 7 | Docs + pitch | ⬜ | Full README rewrite, screenshots, architecture diagram, pitch deck, rehearsal, backup video |
 | 8 | Buffer | ⬜ | Bug bash on deployed link, early submit |
@@ -45,3 +45,4 @@ Forecast 24–72hr solar/wind generation per site and recommend grid actions (cu
 - `docs/EDA.md` — distributions, multicollinearity, missing-value findings, decisions made from them
 - `docs/MODELING.md` — baseline vs XGBoost results, feature importance, prediction intervals
 - `docs/BACKEND.md` — API design, decision engine logic, bugs found by the test suite
+- `docs/FRONTEND.md` — design choices, architecture, what still needs a visual check
