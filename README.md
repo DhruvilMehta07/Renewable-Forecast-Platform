@@ -6,7 +6,7 @@ Full original concept: [`docs/Ideation_Report_TheFinalCommit.pdf`](docs/Ideation
 
 ## Status
 
-**Sprint 2 of 8 complete.** Data pipeline, EDA, and modeling are done — XGBoost trained and outperforming the linear baseline on every metric. Backend (Sprint 3) is next. Full sprint-by-sprint status: [`docs/Project_Plan.md`](docs/Project_Plan.md).
+**Sprint 3 of 8 complete.** Data pipeline, EDA, modeling, and the FastAPI backend are done. Frontend dashboard (Sprint 4) is next. Full sprint-by-sprint status: [`docs/Project_Plan.md`](docs/Project_Plan.md).
 
 ## Model performance
 
@@ -34,9 +34,9 @@ Kaggle ["Solar Power Generation Data"](https://www.kaggle.com/datasets/anikannal
 ```
 data/       raw source CSVs (generated dataset is gitignored — regenerate with the script below)
 ml/         data pipeline, EDA, model training, and trained model artifacts
-backend/    FastAPI service (Sprint 3)
+backend/    FastAPI service — forecast, feature importance, and history endpoints
 frontend/   React dashboard (Sprint 4)
-docs/       ideation report, project plan, decisions log, EDA + modeling findings and figures
+docs/       ideation report, project plan, decisions log, EDA + modeling + backend findings and figures
 ```
 
 ## Setup
@@ -49,13 +49,17 @@ pip install -r requirements.txt
 python3 ml/build_forecast_dataset.py   # builds data/plant1_forecast_dataset.csv
 python3 ml/eda.py                       # regenerates docs/eda/*.png and stats
 python3 ml/train_models.py              # trains both models, saves ml/models/*.joblib
+
+cd backend
+uvicorn main:app --reload               # serves the API at http://localhost:8000
+pytest tests/                           # runs the backend test suite (mocked weather, no network needed)
 ```
 
 ## Key decisions and limitations
 
 Two real bugs were found and fixed during data pipeline development (timeline gaps breaking lag features, and an initial nowcast/forecast mismatch) — full writeup in [`docs/DECISIONS.md`](docs/DECISIONS.md). EDA findings (zero-inflation, multicollinearity, residual missing values) are in [`docs/EDA.md`](docs/EDA.md). Modeling results and the resolved "current state anchor" question are in [`docs/MODELING.md`](docs/MODELING.md).
 
-Known limitation: both models show similar RMSE despite XGBoost's clear MAE/MAPE advantage — rare, sudden-weather-transition cases remain harder to predict than the average-case numbers suggest.
+Known limitations: both models show similar RMSE despite XGBoost's clear MAE/MAPE advantage — rare, sudden-weather-transition cases remain harder to predict than the average-case numbers suggest. The decision engine's capacity/demand thresholds are a practical proxy (no real grid-demand data available for this dataset), documented in [`docs/BACKEND.md`](docs/BACKEND.md).
 
 ## Future scope
 

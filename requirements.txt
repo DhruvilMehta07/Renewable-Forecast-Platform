@@ -6,3 +6,7 @@ statsmodels
 scikit-learn
 xgboost
 joblib
+fastapi
+uvicorn
+httpx
+pytest
