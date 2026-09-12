@@ -147,3 +147,6 @@ __pycache__/
 .env
 venv/
 *.db
+.DS_Store
+data/plant1_forecast_dataset.csv
+data/*_features.csv
