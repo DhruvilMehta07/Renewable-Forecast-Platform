@@ -53,6 +53,7 @@ function formatTooltipDate(iso) {
 function CustomTooltip({ active, payload }) {
   if (!active || !payload || !payload.length) return null;
   const row = payload[0].payload;
+  const actionColor = row.decision === "curtail" ? "#e8a33d" : "#e85d4c";
   return (
     <div style={{
       background: "#1a2436", border: "1px solid #253247", borderRadius: 6,
@@ -60,12 +61,17 @@ function CustomTooltip({ active, payload }) {
     }}>
       <div style={{ color: "#d7dee8", marginBottom: 8, fontWeight: 500 }}>{formatTooltipDate(row.target_time)}</div>
       <div style={{ color: "#7c8798", marginBottom: 4 }}>Forecast at +{row.horizon_hours} hours</div>
-      <div className="mono" style={{ color: "#e8a33d", fontSize: 16 }}>{Math.round(row.predicted_ac_power).toLocaleString()} kW</div>
-      <div className="mono" style={{ color: "#7c8798", fontSize: 11 }}>
-        Expected range: {Math.round(row.lower_bound).toLocaleString()}{"\u2013"}{Math.round(row.upper_bound).toLocaleString()} kW
+      <div className="tooltip-metric mono" style={{ color: "#e8a33d", fontSize: 16 }}>
+        <span className="tooltip-dot" style={{ background: "#e8a33d" }} />
+        <span><small>Expected output</small>{Math.round(row.predicted_ac_power).toLocaleString()} kW</span>
+      </div>
+      <div className="tooltip-metric mono" style={{ color: "#52c8b2", fontSize: 11 }}>
+        <span className="tooltip-dot" style={{ background: "#52c8b2" }} />
+        <span><small>Possible range</small>{Math.round(row.lower_bound).toLocaleString()}{"\u2013"}{Math.round(row.upper_bound).toLocaleString()} kW</span>
       </div>
       {row.decision !== "normal" && (
-        <div style={{ color: row.decision === "curtail" ? "#e8a33d" : "#e85d4c", marginTop: 4, fontWeight: 500 }}>
+        <div className="tooltip-action" style={{ color: actionColor }}>
+          <span className="tooltip-dot" style={{ background: actionColor }} />
           {row.decision === "curtail" ? "Curtailment recommended" : "Backup dispatch recommended"}
         </div>
       )}

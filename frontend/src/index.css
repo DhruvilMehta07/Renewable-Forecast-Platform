@@ -97,6 +97,10 @@ a, button, input { font-family: inherit; }
 
 .legend-row { display: flex; gap: 20px; flex-wrap: wrap; font-size: 12px; color: var(--text-muted); margin-top: 10px; }
 .legend-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.tooltip-metric { display: flex; align-items: flex-start; gap: 8px; margin-top: 7px; line-height: 1.35; }
+.tooltip-metric small { display: block; color: var(--text-muted); font-family: var(--font-body); font-size: 10px; margin-bottom: 1px; }
+.tooltip-dot { display: inline-block; flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; }
+.tooltip-action { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-weight: 500; line-height: 1.35; }
 .alerts-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; max-height: 280px; overflow-y: auto; }
 .alert-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: var(--bg-panel-raised); border-radius: 6px; border-left: 3px solid var(--accent-alert); font-size: 13px; }
 .alert-row.curtail { border-left-color: var(--accent-solar); }
