@@ -6,7 +6,16 @@ Full original concept: [`docs/Ideation_Report_TheFinalCommit.pdf`](docs/Ideation
 
 ## Status
 
-**Sprint 1.5 of 8 complete.** Data pipeline built, verified, and exploratory analysis done. Modeling (Sprint 2) is next. Full sprint-by-sprint status: [`docs/Project_Plan.md`](docs/Project_Plan.md).
+**Sprint 2 of 8 complete.** Data pipeline, EDA, and modeling are done — XGBoost trained and outperforming the linear baseline on every metric. Backend (Sprint 3) is next. Full sprint-by-sprint status: [`docs/Project_Plan.md`](docs/Project_Plan.md).
+
+## Model performance
+
+| Model | MAE | MAPE (daytime) |
+|---|---|---|
+| Linear regression baseline | 422.8 | 20.5% |
+| **XGBoost** | **320.6** | **6.5%** |
+
+Full results, feature importance, and prediction interval calibration: [`docs/MODELING.md`](docs/MODELING.md).
 
 ## How it works
 
@@ -24,10 +33,10 @@ Kaggle ["Solar Power Generation Data"](https://www.kaggle.com/datasets/anikannal
 
 ```
 data/       raw source CSVs (generated dataset is gitignored — regenerate with the script below)
-ml/         data pipeline, EDA, and (soon) model training
+ml/         data pipeline, EDA, model training, and trained model artifacts
 backend/    FastAPI service (Sprint 3)
 frontend/   React dashboard (Sprint 4)
-docs/       ideation report, project plan, decisions log, EDA findings + figures
+docs/       ideation report, project plan, decisions log, EDA + modeling findings and figures
 ```
 
 ## Setup
@@ -39,11 +48,14 @@ pip install -r requirements.txt
 
 python3 ml/build_forecast_dataset.py   # builds data/plant1_forecast_dataset.csv
 python3 ml/eda.py                       # regenerates docs/eda/*.png and stats
+python3 ml/train_models.py              # trains both models, saves ml/models/*.joblib
 ```
 
 ## Key decisions and limitations
 
-Two real bugs were found and fixed during data pipeline development (timeline gaps breaking lag features, and an initial nowcast/forecast mismatch) — full writeup in [`docs/DECISIONS.md`](docs/DECISIONS.md). EDA findings (zero-inflation, multicollinearity check, residual missing values and how they're handled) are in [`docs/EDA.md`](docs/EDA.md).
+Two real bugs were found and fixed during data pipeline development (timeline gaps breaking lag features, and an initial nowcast/forecast mismatch) — full writeup in [`docs/DECISIONS.md`](docs/DECISIONS.md). EDA findings (zero-inflation, multicollinearity, residual missing values) are in [`docs/EDA.md`](docs/EDA.md). Modeling results and the resolved "current state anchor" question are in [`docs/MODELING.md`](docs/MODELING.md).
+
+Known limitation: both models show similar RMSE despite XGBoost's clear MAE/MAPE advantage — rare, sudden-weather-transition cases remain harder to predict than the average-case numbers suggest.
 
 ## Future scope
 

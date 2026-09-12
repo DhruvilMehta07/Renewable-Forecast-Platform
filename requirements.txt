@@ -3,3 +3,6 @@ numpy
 pvlib
 matplotlib
 statsmodels
+scikit-learn
+xgboost
+joblib
