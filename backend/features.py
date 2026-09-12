@@ -4,14 +4,6 @@ forecast request. This is the live-inference counterpart to
 ml/build_forecast_dataset.py - the column set and meaning must match exactly,
 or the model receives inputs shaped differently than it was trained on.
 
-known-at-issue power features (issue_ac_power, roll_1hr, roll_1day):
-    No live SCADA feed exists for this dataset, so "current output" can't be
-    read from a real sensor. Sprint 2's feature importance analysis
-    (docs/MODELING.md) showed these three features carry ~0.1% combined
-    importance - so rather than build a self-prediction bootstrap to
-    approximate them, they're set to 0 here. This is a documented
-    simplification, not an oversight: the evidence says it doesn't matter.
-
 issue_ambient_temp / issue_clearsky_index:
     Unlike the power features, these DO have a live source (Open-Meteo's
     `current` block) and are computed properly, not placeholdered.

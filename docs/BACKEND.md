@@ -10,7 +10,7 @@ backend/
   model_service.py     loads ml/models/lightgbm_model.joblib, predicts, looks up intervals
   decision_engine.py   rule-based curtail/backup_dispatch/normal flags
   database.py         SQLite persistence of each forecast run
-  main.py             FastAPI app: /health, /forecast, /feature-importance, /history
+  main.py             FastAPI app: /health, /forecast, /forecast/what-if, /feature-importance, /history
   tests/test_forecast.py
 ```
 
@@ -24,6 +24,7 @@ backend.main:app` from the repo root or `cd backend && uvicorn main:app`.
 |---|---|
 | `GET /health` | `{"status": "ok"}` |
 | `GET /forecast` | 72-hour forecast: prediction, interval band, `is_daytime`, decision flag per hour |
+| `GET /forecast/what-if` | Approximate capacity-scaled forecast for a latitude, longitude, and capacity |
 | `GET /feature-importance` | Live model's `feature_importances_`, for the dashboard's explainability panel |
 | `GET /history?limit=10` | Recent forecast runs from SQLite |
 
@@ -102,11 +103,34 @@ and infer with artificial zero placeholders. A future SCADA integration can add
 these features back only after historical SCADA data is used to retrain and
 validate the model.
 
+## What-if site mode
+
+`GET /forecast/what-if` accepts `latitude`, `longitude`, and `capacity_kw`.
+It fetches weather for those coordinates, calculates solar position with pvlib,
+runs the Plant 1-trained LightGBM model, and scales predictions and uncertainty
+by `requested capacity / Plant 1 reference capacity`. Outputs are capped at the
+requested capacity and marked with `"approximate": true`.
+
+This is an exploratory estimate, not a validated site-specific forecast, because
+the model was trained on one plant and does not use tilt, azimuth, efficiency,
+terrain, or technology details. Plant 1 mode remains authoritative for reported
+model performance.
+
 ## Testing
 
-5 tests in `backend/tests/test_forecast.py`, all passing:
+7 tests in `backend/tests/test_forecast.py`, all passing:
 response shape (72 rows, horizons 1–72 in order), value sanity (bounds bracket
 the prediction, decision is one of the 3 valid values), persistence
 (a forecast run is retrievable via `/history`), feature importance sums to 1.0,
 nighttime predictions are exact 0, and a simulated weather-API failure returns
-a clean `502` instead of a raw stack trace.
+a clean `502` instead of a raw stack trace. The What-if endpoint is also tested
+for approximate mode, capacity scaling, output capping, and five-day weather
+coverage.
+
+## Weather coverage safeguard
+
+The weather client requests five forecast days rather than four. A four-day
+response can end just before the application's local-time `+72h` target because
+Open-Meteo returns hourly data aligned to local calendar boundaries. The extra
+day is a deliberate buffer that prevents valid Plant 1 and What-if requests from
+failing at the final forecast hour.

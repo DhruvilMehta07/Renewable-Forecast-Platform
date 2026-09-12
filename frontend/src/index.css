@@ -82,6 +82,15 @@ a, button { font-family: inherit; }
 .refresh-btn:hover { border-color: var(--accent-grid); }
 .refresh-btn:disabled { opacity: 0.5; cursor: default; }
 
+.mode-panel { padding-bottom: 16px; }
+.mode-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+.mode-tab { background: transparent; border: 1px solid var(--border); color: var(--text-muted); padding: 8px 14px; border-radius: 6px; cursor: pointer; }
+.mode-tab.active { color: var(--text-primary); border-color: var(--accent-grid); background: var(--bg-panel-raised); }
+.what-if-form { display: grid; grid-template-columns: repeat(3, 1fr) auto; gap: 12px; align-items: end; }
+.what-if-form label { display: grid; gap: 6px; color: var(--text-muted); font-size: 12px; }
+.what-if-form input { width: 100%; background: var(--bg-panel-raised); border: 1px solid var(--border); border-radius: 6px; color: var(--text-primary); padding: 9px 10px; font: inherit; }
+@media (max-width: 720px) { .what-if-form { grid-template-columns: 1fr; } }
+
 .status-strip {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

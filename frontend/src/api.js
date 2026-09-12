@@ -15,6 +15,15 @@ export function getForecast() {
   return getJSON("/forecast");
 }
 
+export function getWhatIfForecast({ latitude, longitude, capacityKw }) {
+  const params = new URLSearchParams({
+    latitude: String(latitude),
+    longitude: String(longitude),
+    capacity_kw: String(capacityKw),
+  });
+  return getJSON(`/forecast/what-if?${params}`);
+}
+
 export function getFeatureImportance() {
   return getJSON("/feature-importance");
 }

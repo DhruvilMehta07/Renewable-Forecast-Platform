@@ -7,7 +7,7 @@
 Forecast 24–72hr solar/wind generation per site and recommend grid actions (curtail / dispatch storage / activate backup) via a three-layer system: forecasting → decision engine → dashboard. Full original concept: `docs/Ideation_Report_TheFinalCommit.pdf`.
 
 ## Scope
-**In:** 1 solar site (2nd site only if time remains) · Kaggle historical data + Open-Meteo live forecast · linear regression baseline → XGBoost and Optuna-tuned LightGBM · rule-based decision engine · React dashboard · deployed live link.
+**In:** 1 validated solar site plus an approximate What-if site mode · Kaggle historical data + Open-Meteo live forecast · linear regression baseline → XGBoost and Optuna-tuned LightGBM · rule-based decision engine · React dashboard · deployed live link.
 **Out (documented, not built):** multi-site generalization, Prophet/LSTM comparisons, market-price signals, satellite nowcasting, scheduled retraining, learned policy. See `docs/DECISIONS.md`.
 
 ## Tech Stack
@@ -28,7 +28,7 @@ Forecast 24–72hr solar/wind generation per site and recommend grid actions (cu
 | 1.5 | EDA + validation | ✅ Done | `ml/eda.py`, `docs/EDA.md`, `docs/eda/*.png`. Confirmed zero-inflation is physical, no feature exceeds VIF 10, found + documented residual NaNs in 3 columns |
 | 2 | Modeling | ✅ Done | `ml/train_models.py`. Reduced-feature, Optuna-tuned LightGBM beats the matching reduced-feature XGBoost and linear baseline (MAE 291.7 kW, daytime MAPE 5.8%). Full writeup: `docs/MODELING.md` |
 | 3 | Backend | ✅ Done | FastAPI (`backend/`): `/forecast`, `/feature-importance`, `/history`. 2 real bugs caught by tests before reaching the API — see `docs/BACKEND.md` |
-| 4 | Frontend | ✅ Done (pending visual confirmation) | React dashboard (`frontend/`): forecast chart w/ band + night shading, alerts panel, feature importance panel. Build verified; visual rendering not yet confirmed in this environment — see `docs/FRONTEND.md` |
+| 4 | Frontend | ✅ Done | React dashboard (`frontend/`): Plant 1 and What-if modes, forecast chart w/ band + night shading, alerts panel, feature importance panel. Build and live visual rendering verified — see `docs/FRONTEND.md` |
 | 5 | 2nd site (stretch) | ⬜ Next | Repeat pipeline for a 2nd site if ahead of schedule |
 | 6 | Deploy | ⬜ | Live public link, weather-API fallback caching |
 | 7 | Docs + pitch | ⬜ | Full README rewrite, screenshots, architecture diagram, pitch deck, rehearsal, backup video |

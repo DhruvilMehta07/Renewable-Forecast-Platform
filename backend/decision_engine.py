@@ -11,8 +11,9 @@ curtailment) - not to restate that the sun is down.
 import config
 
 
-def decide(predicted_kw: float, is_daytime: int) -> str:
-    frac = predicted_kw / config.SITE_CAPACITY_KW
+def decide(predicted_kw: float, is_daytime: int, capacity_kw: float = None) -> str:
+    capacity = capacity_kw or config.SITE_CAPACITY_KW
+    frac = predicted_kw / capacity
     if is_daytime and frac >= config.CURTAIL_THRESHOLD_PCT:
         return "curtail"
     if is_daytime and frac <= config.UNDERPERFORM_THRESHOLD_PCT:

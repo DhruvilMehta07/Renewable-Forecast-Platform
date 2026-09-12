@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 import config
@@ -22,48 +22,73 @@ def health():
     return {"status": "ok"}
 
 
-@app.get("/forecast")
-def get_forecast():
+def build_forecast_response(lat, lon, timezone, capacity_kw, approximate):
     try:
-        weather_json = weather_client.fetch_weather(config.LAT, config.LON, config.TIMEZONE)
+        weather_json = weather_client.fetch_weather(lat, lon, timezone)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Weather fetch failed: {e}")
 
-    feature_df, issue_time = features.build_feature_rows(weather_json, config.LAT, config.LON, config.TIMEZONE)
+    resolved_timezone = weather_json.get(
+        "timezone", timezone if timezone != "auto" else config.TIMEZONE
+    )
+    feature_df, issue_time = features.build_feature_rows(
+        weather_json, lat, lon, resolved_timezone
+    )
     predictions = model_service.predict(feature_df)
+    scale = capacity_kw / config.SITE_CAPACITY_KW
 
     forecast_rows = []
     for i, row in feature_df.iterrows():
-        # Generation can never be physically negative; XGBoost isn't aware of that
-        # constraint and occasionally predicts small negative values near zero
-        # (e.g. at night) - clip here rather than at training time.
-        pred = max(0.0, float(predictions[i]))
-        # Nighttime generation is a known physical zero (confirmed in docs/EDA.md) -
-        # any nonzero prediction here is regression noise, not signal. A live run
-        # showed jitter like 203.4 kW at is_daytime=false hours, which is harmless
-        # to the decision engine (it's gated off at night regardless) but looks
-        # like a bug on a dashboard chart. Snapping to 0 is enforcing a known
-        # ground truth, not hiding a real result.
+        prediction = max(0.0, float(predictions[i]))
+        if approximate:
+            prediction *= scale
+        prediction = min(prediction, capacity_kw)
         if not bool(row["target_is_daytime"]):
-            pred = 0.0
+            prediction = 0.0
         band = model_service.interval_for_horizon(int(row["horizon_hours"]))
+        if approximate:
+            band *= scale
         forecast_rows.append({
             "target_time": row["target_time"],
             "horizon_hours": int(row["horizon_hours"]),
-            "predicted_ac_power": round(pred, 1),
-            "lower_bound": round(max(0.0, pred - band), 1),
-            "upper_bound": round(pred + band, 1),
+            "predicted_ac_power": round(prediction, 1),
+            "lower_bound": round(max(0.0, prediction - band), 1),
+            "upper_bound": round(min(capacity_kw, prediction + band), 1),
             "is_daytime": bool(row["target_is_daytime"]),
-            "decision": decision_engine.decide(pred, row["target_is_daytime"]),
+            "decision": decision_engine.decide(
+                prediction, row["target_is_daytime"], capacity_kw
+            ),
         })
 
     database.save_run(issue_time.isoformat(), forecast_rows)
-
     return {
         "issue_time": issue_time.isoformat(),
-        "site": {"lat": config.LAT, "lon": config.LON},
+        "site": {
+            "lat": lat,
+            "lon": lon,
+            "timezone": resolved_timezone,
+            "capacity_kw": capacity_kw,
+        },
+        "mode": "what_if" if approximate else "plant_1",
+        "approximate": approximate,
         "forecast": forecast_rows,
     }
+
+
+@app.get("/forecast")
+def get_forecast():
+    return build_forecast_response(
+        config.LAT, config.LON, config.TIMEZONE, config.SITE_CAPACITY_KW, False
+    )
+
+
+@app.get("/forecast/what-if")
+def get_what_if_forecast(
+    latitude: float = Query(..., ge=-90, le=90),
+    longitude: float = Query(..., ge=-180, le=180),
+    capacity_kw: float = Query(..., gt=0, le=1_000_000),
+):
+    return build_forecast_response(latitude, longitude, "auto", capacity_kw, True)
 
 
 @app.get("/feature-importance")

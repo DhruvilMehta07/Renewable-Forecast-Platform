@@ -66,6 +66,41 @@ def test_forecast_saved_to_history(monkeypatch, tmp_path):
     assert len(resp.json()["runs"]) == 1
 
 
+def test_what_if_forecast_is_approximate_and_capacity_scaled(monkeypatch, tmp_path):
+    _use_temp_db(monkeypatch, tmp_path)
+    monkeypatch.setattr(weather_client, "fetch_weather", lambda lat, lon, tz: make_mock_weather())
+
+    client = TestClient(main.app)
+    resp = client.get("/forecast/what-if?latitude=19.076&longitude=72.877&capacity_kw=5000")
+    assert resp.status_code == 200
+    data = resp.json()
+
+    assert data["mode"] == "what_if"
+    assert data["approximate"] is True
+    assert data["site"]["capacity_kw"] == 5000
+    assert len(data["forecast"]) == 72
+    assert all(row["predicted_ac_power"] <= 5000 for row in data["forecast"])
+
+
+def test_weather_request_keeps_five_day_coverage(monkeypatch):
+    captured = {}
+
+    class MockResponse:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return make_mock_weather()
+
+    def fake_get(url, params, timeout):
+        captured.update(params)
+        return MockResponse()
+
+    monkeypatch.setattr(weather_client.requests, "get", fake_get)
+    weather_client.fetch_weather(14.5, 78.0, "Asia/Kolkata")
+    assert captured["forecast_days"] == 5
+
+
 def test_feature_importance_sums_to_one():
     client = TestClient(main.app)
     resp = client.get("/feature-importance")

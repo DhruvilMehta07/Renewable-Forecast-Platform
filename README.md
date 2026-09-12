@@ -6,7 +6,7 @@ Full original concept: [`docs/Ideation_Report_TheFinalCommit.pdf`](docs/Ideation
 
 ## Status
 
-**Sprint 4 of 8 complete.** Data pipeline, EDA, modeling, backend, and the frontend dashboard are all built. The live backend now uses the Optuna-tuned LightGBM model; XGBoost remains stored as a benchmark/fallback. The dashboard's build is verified but not yet visually confirmed in this environment (see `docs/FRONTEND.md`) — a 2nd site (Sprint 5, stretch) or deployment (Sprint 6) is next. Full sprint-by-sprint status: [`docs/Project_Plan.md`](docs/Project_Plan.md).
+**Sprint 4 of 8 complete.** Data pipeline, EDA, modeling, backend, and the frontend dashboard are all built. The live backend now uses the Optuna-tuned LightGBM model; XGBoost remains stored as a benchmark/fallback. The Plant 1 and What-if dashboard modes have been built and visually verified — a 2nd site (Sprint 5, stretch) or deployment (Sprint 6) is next. Full sprint-by-sprint status: [`docs/Project_Plan.md`](docs/Project_Plan.md).
 
 ## Model performance
 

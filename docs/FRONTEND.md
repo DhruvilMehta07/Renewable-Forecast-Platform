@@ -40,9 +40,18 @@ The live `/forecast` and `/feature-importance` responses are produced by the
 Optuna-tuned LightGBM model. The XGBoost artifact remains stored as a
 benchmark/fallback and does not change the frontend response contract.
 
-## Verified live, and a real bug found + fixed
+The dashboard provides two modes:
 
-You confirmed the dashboard renders correctly against the real backend
+- **Plant 1:** the default validated mode using fixed Plant 1 coordinates,
+  calibrated intervals, and the live LightGBM model.
+- **What-if site:** accepts latitude, longitude, and capacity in kW, fetches
+  location-specific weather, and displays a capacity-scaled estimate. The UI
+  labels this result as approximate because the model was trained on Plant 1,
+  not arbitrary sites.
+
+## Verified live, and real bugs found + fixed
+
+The dashboard was verified rendering correctly against the real backend
 (status strip, chart, alerts, importance panel all populated with values
 matching the API directly). That surfaced one genuine bug, not just polish:
 
