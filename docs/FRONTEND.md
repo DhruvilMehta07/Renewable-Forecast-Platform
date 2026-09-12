@@ -40,15 +40,29 @@ The live `/forecast` and `/feature-importance` responses are produced by the
 Optuna-tuned LightGBM model. The XGBoost artifact remains stored as a
 benchmark/fallback and does not change the frontend response contract.
 
-## What was and wasn't verified in this environment
+## Verified live, and a real bug found + fixed
 
-`npm run build` succeeds (594 modules, no errors) — that catches syntax and
-import errors, but this sandbox has no headless browser available, so the
-actual rendered output was never visually confirmed here. **This is the one
-piece of Sprint 4 that still needs your eyes** — run it locally (steps below)
-against the real backend and confirm the chart, band, night shading, and
-alert markers actually look right, the same way you confirmed the backend
-against a real Open-Meteo call in Sprint 3.
+You confirmed the dashboard renders correctly against the real backend
+(status strip, chart, alerts, importance panel all populated with values
+matching the API directly). That surfaced one genuine bug, not just polish:
+
+**Tooltip desync.** The alert-marker `Scatter` series used its own separately
+filtered `data` array (`alertPoints`, ~4 rows) instead of sharing the same
+array as the other series. Recharts synchronizes tooltip hover position
+across all series in a chart by matching index into each series' `data` —
+a differently-sized child array desyncs that shared index, so the tooltip
+locked onto the wrong row regardless of actual cursor position ("shows 0 at
+every point" was this, not a data problem). Fixed by moving the alert flag
+onto the same shared array as everything else (`alertMarker: decision !==
+"normal" ? predicted_ac_power : null`), which is also the standard Recharts
+pattern for exactly this kind of multi-series chart. Switched the x-axis to
+`type="category"` at the same time — more reliable per-index hover tracking
+than `type="number"` for a chart mixing dense and sparse series.
+
+A second, smaller bug in the same component: `\u2013` (en dash) was written
+directly in JSX text, where escape sequences are never interpreted — it
+printed as the literal 6 characters instead of a dash. Fixed by wrapping it
+in a JS expression (`{"\u2013"}`), which JSX does evaluate.
 
 ## Running it
 

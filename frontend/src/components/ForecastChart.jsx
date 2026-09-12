@@ -33,7 +33,7 @@ function CustomTooltip({ active, payload }) {
       <div style={{ color: "#7c8798", marginBottom: 4 }}>{formatTick(row.target_time)} (+{row.horizon_hours}h)</div>
       <div className="mono" style={{ color: "#e8a33d" }}>{Math.round(row.predicted_ac_power).toLocaleString()} kW</div>
       <div className="mono" style={{ color: "#7c8798", fontSize: 11 }}>
-        range {Math.round(row.lower_bound).toLocaleString()}\u2013{Math.round(row.upper_bound).toLocaleString()}
+        range {Math.round(row.lower_bound).toLocaleString()}{"\u2013"}{Math.round(row.upper_bound).toLocaleString()}
       </div>
       {row.decision !== "normal" && (
         <div style={{ color: row.decision === "curtail" ? "#e8a33d" : "#e85d4c", marginTop: 4, fontWeight: 500 }}>
@@ -45,9 +45,17 @@ function CustomTooltip({ active, payload }) {
 }
 
 export default function ForecastChart({ forecast }) {
-  const data = forecast.map((row, i) => ({ ...row, index: i }));
+  // alertMarker/alertDecision live on the SAME shared array as every other
+  // series (rather than a separately-filtered, shorter array) - Recharts
+  // synchronizes tooltip hover position across all series' data by shared
+  // index, so a differently-sized child series desyncs that index and the
+  // tooltip locks onto the wrong row. This was a real bug, not cosmetic.
+  const data = forecast.map((row, i) => ({
+    ...row,
+    index: i,
+    alertMarker: row.decision !== "normal" ? row.predicted_ac_power : null,
+  }));
   const nightSegments = getNightSegments(data);
-  const alertPoints = data.filter((row) => row.decision !== "normal");
 
   return (
     <div className="panel">
@@ -61,8 +69,7 @@ export default function ForecastChart({ forecast }) {
           ))}
           <XAxis
             dataKey="index"
-            type="number"
-            domain={[0, data.length - 1]}
+            type="category"
             ticks={data.filter((_, i) => i % 12 === 0).map((r) => r.index)}
             tickFormatter={(idx) => formatTick(data[idx].target_time)}
             stroke="#7c8798"
@@ -74,9 +81,9 @@ export default function ForecastChart({ forecast }) {
           <Area dataKey="lower_bound" stroke="none" fill="#0d1420" fillOpacity={1} isAnimationActive={false} />
           <Line dataKey="predicted_ac_power" stroke="#e8a33d" strokeWidth={2} dot={false} isAnimationActive={false} />
           <Scatter
-            data={alertPoints}
-            dataKey="predicted_ac_power"
+            dataKey="alertMarker"
             shape={(props) => {
+              if (props.payload.alertMarker == null) return null;
               const color = props.payload.decision === "curtail" ? "#e8a33d" : "#e85d4c";
               return <circle cx={props.cx} cy={props.cy} r={4} fill={color} stroke="#0d1420" strokeWidth={1.5} />;
             }}
