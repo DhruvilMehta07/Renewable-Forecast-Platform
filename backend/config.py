@@ -30,7 +30,6 @@ MODEL_PATH = os.path.join(_REPO_ROOT, "ml", "models", "lightgbm_model.joblib")
 DB_PATH = os.path.join(_BACKEND_DIR, "forecast.db")
 
 FEATURES = [
-    "issue_ac_power", "issue_ac_power_roll_1hr", "issue_ac_power_roll_1day",
     "issue_ambient_temp", "issue_clearsky_index", "hour", "day_of_year",
     "horizon_hours", "target_ambient_temp", "target_irradiation",
     "target_solar_elevation", "target_is_daytime",
@@ -38,9 +37,9 @@ FEATURES = [
 
 # LightGBM validation-set p90 absolute residual, by horizon bucket
 PREDICTION_INTERVALS = {
-    "1-24h": 649.0,
-    "25-48h": 754.6,
-    "49-72h": 865.8,
+  "1-24h": 692.1,
+  "25-48h": 766.5,
+  "49-72h": 895.5,
 }
 
 SITE_CAPACITY_KW = 29150  # max observed AC_POWER in training data - see docstring above

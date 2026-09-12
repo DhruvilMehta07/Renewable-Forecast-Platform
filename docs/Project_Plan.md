@@ -26,7 +26,7 @@ Forecast 24–72hr solar/wind generation per site and recommend grid actions (cu
 | 0 | Repo setup | ✅ Done | Repo, folders, LICENSE, initial docs |
 | 1 | Data + features | ✅ Done | `ml/build_forecast_dataset.py` → `data/plant1_forecast_dataset.csv` (210,340 rows, 72 horizons). Two real bugs found and fixed — see `docs/DECISIONS.md` |
 | 1.5 | EDA + validation | ✅ Done | `ml/eda.py`, `docs/EDA.md`, `docs/eda/*.png`. Confirmed zero-inflation is physical, no feature exceeds VIF 10, found + documented residual NaNs in 3 columns |
-| 2 | Modeling | ✅ Done | `ml/train_models.py`. Optuna-tuned LightGBM beats XGBoost and linear regression on the main test metrics (MAE 267.8 kW, daytime MAPE 5.0%). Full writeup: `docs/MODELING.md` |
+| 2 | Modeling | ✅ Done | `ml/train_models.py`. Reduced-feature, Optuna-tuned LightGBM beats the matching reduced-feature XGBoost and linear baseline (MAE 291.7 kW, daytime MAPE 5.8%). Full writeup: `docs/MODELING.md` |
 | 3 | Backend | ✅ Done | FastAPI (`backend/`): `/forecast`, `/feature-importance`, `/history`. 2 real bugs caught by tests before reaching the API — see `docs/BACKEND.md` |
 | 4 | Frontend | ✅ Done (pending visual confirmation) | React dashboard (`frontend/`): forecast chart w/ band + night shading, alerts panel, feature importance panel. Build verified; visual rendering not yet confirmed in this environment — see `docs/FRONTEND.md` |
 | 5 | 2nd site (stretch) | ⬜ Next | Repeat pipeline for a 2nd site if ahead of schedule |

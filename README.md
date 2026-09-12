@@ -12,15 +12,15 @@ Full original concept: [`docs/Ideation_Report_TheFinalCommit.pdf`](docs/Ideation
 
 | Model | MAE | MAPE (daytime) |
 |---|---|---|
-| Linear regression baseline | 422.8 | 20.5% |
-| XGBoost | 320.6 | 6.5% |
-| **Optuna-tuned LightGBM** | **267.8** | **5.0%** |
+| Linear regression baseline | 424.3 | 19.8% |
+| XGBoost | 353.9 | 8.7% |
+| **Optuna-tuned LightGBM** | **291.7** | **5.8%** |
 
 Full results, LightGBM tuning details, feature importance, and prediction interval calibration: [`docs/MODELING.md`](docs/MODELING.md).
 
 ## How it works
 
-1. **Offline, once:** historical solar generation + weather data → feature engineering → a horizon-aware training set → compares linear regression, XGBoost, and Optuna-tuned LightGBM.
+1. **Offline, once:** historical solar generation + weather data → feature engineering → a horizon-aware training set with nine live-consistent features → compares linear regression, XGBoost, and Optuna-tuned LightGBM.
 2. **Live, on every request:** current + 72hr forecast weather (Open-Meteo) + computed solar position (pvlib) → assembled into the same feature shape the model was trained on → 72-hour prediction with a confidence band.
 3. **Then:** a rule-based decision engine flags curtailment/dispatch/backup periods from the prediction, and a dashboard displays the forecast, alerts, and feature importance.
 
@@ -63,7 +63,7 @@ npm install && npm run dev              # serves the dashboard, defaults to http
 
 Two real bugs were found and fixed during data pipeline development (timeline gaps breaking lag features, and an initial nowcast/forecast mismatch) — full writeup in [`docs/DECISIONS.md`](docs/DECISIONS.md). EDA findings (zero-inflation, multicollinearity, residual missing values) are in [`docs/EDA.md`](docs/EDA.md). Modeling results and the resolved "current state anchor" question are in [`docs/MODELING.md`](docs/MODELING.md).
 
-Known limitations: the evaluation uses one short historical period and assumes perfect target-time weather during backtesting; rare, sudden-weather-transition cases remain harder to predict than average-case numbers suggest. LightGBM is the current live model, while XGBoost remains a benchmark/fallback. The decision engine's capacity/demand thresholds are a practical proxy (no real grid-demand data available for this dataset), documented in [`docs/BACKEND.md`](docs/BACKEND.md).
+Known limitations: the evaluation uses one short historical period and assumes perfect target-time weather during backtesting; rare, sudden-weather-transition cases remain harder to predict than average-case numbers suggest. The three zero-placeholder current-power features were removed from the live-consistent model; adding real SCADA later may improve performance. LightGBM is the current live model, while XGBoost remains a benchmark/fallback. The decision engine's capacity/demand thresholds are a practical proxy (no real grid-demand data available for this dataset), documented in [`docs/BACKEND.md`](docs/BACKEND.md).
 
 ## Future scope
 

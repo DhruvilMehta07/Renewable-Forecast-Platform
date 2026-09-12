@@ -70,7 +70,7 @@ also run against the actual Open-Meteo API and produced a physically sensible
 72-hour curve — sunrise ramp-up, midday peak (~20,900–22,750 kW), dusk taper,
 repeating consistently across all 3 forecast days, with `backup_dispatch`
 firing at the same relative dusk hour each day (h=1, 25, 49) and interval math
-checking out exactly (e.g. prediction 20900.5 ± 649.0 = [20251.5, 21549.5]).
+checking out exactly (e.g. prediction 20900.5 ± 692.1 = [20208.4, 21592.6]).
 
 ## Decision engine design choices
 
@@ -92,16 +92,15 @@ checking out exactly (e.g. prediction 20900.5 ± 649.0 = [20251.5, 21549.5]).
   (technically daylight, but not enough to generate). Seeing it fire correctly
   on a realistic edge case in testing is a good sign, not a red flag.
 
-## Known-at-issue power features: the placeholder decision, applied
+## Live-consistent feature contract
 
-As planned back when the "current state anchor" question first came up:
-`issue_ac_power`, `issue_ac_power_roll_1hr`, and `issue_ac_power_roll_1day` are
-set to `0.0` at inference rather than built from a self-prediction bootstrap.
-Sprint 2's feature importance analysis (`docs/MODELING.md`) is what justifies
-this — those three features carried ~0.1% combined importance across two
-independent training runs, so a crude placeholder costs essentially nothing.
-`issue_ambient_temp` and `issue_clearsky_index`, which *do* have a live source
-(Open-Meteo's `current` block), are computed properly, not placeholdered.
+The deployed model uses nine features that are available from live weather or
+physical time/solar calculations. The three current-power anchors
+(`issue_ac_power`, `issue_ac_power_roll_1hr`, and `issue_ac_power_roll_1day`)
+were removed because the prototype has no SCADA feed and would otherwise train
+and infer with artificial zero placeholders. A future SCADA integration can add
+these features back only after historical SCADA data is used to retrain and
+validate the model.
 
 ## Testing
 

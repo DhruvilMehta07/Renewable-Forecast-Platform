@@ -22,3 +22,30 @@
 
 ## Carry-forward note for Sprint 3 (backend)
 Open-Meteo's `shortwave_radiation` is in W/m²; the training data's `IRRADIATION` column is in kW/m². Divide Open-Meteo's value by 1000 before passing it to the model, or every prediction will be built on a value 1000x too large.
+
+## Final live feature contract
+
+The original training table included three current-power anchors:
+`issue_ac_power`, `issue_ac_power_roll_1hr`, and `issue_ac_power_roll_1day`.
+They were useful when evaluating historical rows because those rows contained
+real historical plant output. However, no SCADA feed exists for live inference,
+so `backend/features.py` had to supply `0.0` for all three. This created a
+training-serving mismatch:
+
+```text
+historical training/testing: real current-power values
+live inference:             artificial zero placeholders
+```
+
+The previous 12-feature LightGBM experiment therefore achieved better offline
+metrics (`267.8 kW` MAE and `5.0%` daytime MAPE), but those numbers assumed current
+power was available. The three anchors were removed from both the training and
+backend feature lists. The final model uses nine features that are available from
+Open-Meteo, timestamps, or pvlib at inference time.
+
+The reduced model's matching untouched-test results are `291.7 kW` MAE,
+`609.6 kW` RMSE, and `5.8%` daytime MAPE. This is a measured accuracy trade-off,
+not an unnoticed regression. We accepted it because consistent training and live
+inputs are more defensible for the current no-SCADA prototype. If SCADA is added,
+the three anchors should be restored only after collecting historical SCADA data,
+rebuilding the training table, and retraining the model.

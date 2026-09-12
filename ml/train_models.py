@@ -13,9 +13,13 @@ would divide by zero constantly. MAPE below is computed only over rows where
 actual generation is meaningfully non-zero (> 100); the zero-generation subset
 is reported separately as MAE (which has no such issue).
 
-Missing values: XGBoost trains on the data as-is (native NaN handling). The
+Missing values: the tree models train on the data as-is (native NaN handling). The
 linear baseline drops any row with a NaN feature first - see docs/EDA.md
 section 1 for which columns and why.
+
+The three issue-time power-anchor features are intentionally excluded from the
+model feature set because live inference has no SCADA feed and would otherwise
+provide constant zero placeholders rather than real plant state.
 
 Outputs:
     ml/models/linear_baseline.joblib
@@ -47,7 +51,6 @@ os.makedirs(MODEL_DIR, exist_ok=True)
 os.makedirs(OUT_DIR, exist_ok=True)
 
 FEATURES = [
-    "issue_ac_power", "issue_ac_power_roll_1hr", "issue_ac_power_roll_1day",
     "issue_ambient_temp", "issue_clearsky_index", "hour", "day_of_year",
     "horizon_hours", "target_ambient_temp", "target_irradiation",
     "target_solar_elevation", "target_is_daytime",
@@ -237,9 +240,9 @@ def main():
     horizon_breakdown += metrics_by_horizon_bucket(test, TARGET, lgbm_pred_test, "lightgbm_optuna")
     joblib.dump(lgbm_model, f"{MODEL_DIR}/lightgbm_model.joblib")
 
-    print("\n=== Prediction interval calibration (on val set, not test) ===")
-    xgb_pred_val = xgb_model.predict(val[FEATURES])
-    val_resid = val[TARGET].values - xgb_pred_val
+    print("\n=== Prediction interval calibration (LightGBM on val set, not test) ===")
+    lgbm_pred_val = lgbm_model.predict(val[FEATURES])
+    val_resid = val[TARGET].values - lgbm_pred_val
     val_df = val.copy()
     val_df["abs_resid"] = np.abs(val_resid)
     val_df["bucket"] = pd.cut(val_df["horizon_hours"], bins=[0, 24, 48, 72],

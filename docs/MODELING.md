@@ -2,7 +2,8 @@
 
 Script: `ml/train_models.py`. Split: time-based, by `issue_time` - train on everything
 before 2020-06-05 22:45, calibrate prediction intervals on the next 6 days (val),
-report final metrics on the last 6 days (test, touched once). LightGBM uses Optuna
+report final metrics on the last 6 days (test, touched once). The final model uses
+nine live-consistent features; LightGBM uses Optuna
 with three spaced four-day validation windows and early stopping. Never a random
 split - see `docs/DECISIONS.md` for why that would leak.
 
@@ -10,17 +11,18 @@ split - see `docs/DECISIONS.md` for why that would leak.
 
 | Model | MAE | RMSE | MAPE (daytime only) | MAE (night rows) |
 |---|---|---|---|---|
-| Linear regression baseline | 422.8 | 659.1 | 20.5% | 169.5 |
-| XGBoost | 320.6 | 656.0 | **6.5%** | **0.4** |
-| **Optuna-tuned LightGBM** | **267.8** | **577.9** | **5.0%** | **1.0** |
+| Linear regression baseline | 424.3 | 663.2 | 19.8% | 167.5 |
+| XGBoost | 353.9 | 692.2 | **8.7%** | **11.8** |
+| **Optuna-tuned LightGBM** | **291.7** | **609.6** | **5.8%** | **1.8** |
 
 MAPE is computed only over rows where actual generation > 100 (daytime) - with
 ~46.6% of rows at exactly 0, a naive MAPE divides by zero constantly. The
-zero/near-zero subset is reported separately as MAE instead. XGBoost has the
-lowest nighttime error, while LightGBM is better overall and during daytime.
+zero/near-zero subset is reported separately as MAE instead. LightGBM is better
+overall and during daytime, while the reduced-feature XGBoost has a larger
+nighttime error because the explicit current-power placeholders were removed.
 
-LightGBM is the best model on this untouched test window: it reduces MAE to
-267.8 kW, RMSE to 577.9 kW, and daytime MAPE to 5.0%. Its night MAE is 1.0 kW.
+LightGBM is the best model on this untouched test window: it achieves
+291.7 kW MAE, 609.6 kW RMSE, and 5.8% daytime MAPE. Its night MAE is 1.8 kW.
 The improvement is especially meaningful because all three models use the same
 chronological split and the test period is not used during tuning.
 
@@ -35,19 +37,19 @@ early stopping after 50 rounds without validation improvement. The objective was
 a balanced score: 70% overall MAE and 30% daytime MAE. The final tree count was
 the mean best iteration across the validation folds.
 
-Selected values:
+Selected values after removing the three live-zero power anchors:
 
 | Parameter | Value |
 |---|---:|
-| `learning_rate` | 0.0241 |
-| `num_leaves` | 24 |
-| `max_depth` | 8 |
-| `min_child_samples` | 82 |
-| `subsample` | 0.8879 |
-| `colsample_bytree` | 0.8790 |
-| `reg_lambda` | 3.9619 |
-| `reg_alpha` | 0.6978 |
-| `n_estimators` | 780 |
+| `learning_rate` | 0.0296 |
+| `num_leaves` | 21 |
+| `max_depth` | 7 |
+| `min_child_samples` | 79 |
+| `subsample` | 0.8859 |
+| `colsample_bytree` | 0.8885 |
+| `reg_lambda` | 3.3225 |
+| `reg_alpha` | 0.0383 |
+| `n_estimators` | 758 |
 
 The regularization, limited tree depth, minimum child size, subsampling, and
 early stopping reduce the risk of fitting individual weather days. Trial results
@@ -59,27 +61,18 @@ are saved in `docs/eda/lightgbm_optuna_trials.csv`, parameters in
 
 | Model | 1-24h MAE | 25-48h MAE | 49-72h MAE |
 |---|---:|---:|---:|
-| Linear regression | 430.3 | 423.5 | 410.0 |
-| XGBoost | 320.0 | 328.0 | 312.1 |
-| LightGBM | **270.3** | **276.7** | **252.5** |
+| Linear regression | 431.7 | 425.2 | 411.7 |
+| XGBoost | 355.5 | 361.7 | 341.3 |
+| LightGBM | **292.5** | **301.2** | **278.1** |
 
 ## Reproducibility note
 
-Re-running this script on a different machine reproduced the linear baseline's
-numbers exactly (422.8/659.1, identical coefficients), but gave slightly different
-XGBoost numbers (320.6 vs an earlier 342.4 MAE) despite the fixed `random_state=42`.
-This is a known characteristic of gradient-boosted trees: training is parallelized
-across CPU cores, and floating-point summation order during parallel histogram
-building isn't guaranteed identical across machines/core counts, which can nudge
-early tree splits and cascade into different (but similarly accurate) trees over
-300 boosting rounds. `random_state` fixes the algorithm's own RNG stream, not
-cross-platform floating-point arithmetic. Forcing `n_jobs=1` would make it fully
-reproducible on a given XGBoost version, at the cost of slower training - not done
-here since training takes seconds either way and the qualitative conclusion is
-identical across runs.
-
-This same run-to-run variation is also why the per-feature importance ranking
-shifted (see below) - worth understanding for judging Q&A, not a sign of a bug.
+The current tree-model training uses `random_state=42` and `n_jobs=1` where
+supported, reducing machine-to-machine variation. Exact scores can still change
+if the library versions, training data, or feature contract changes. The results
+reported above are from the current nine-feature contract and must not be compared
+directly with the earlier 12-feature experiment without noting that the inputs
+were different.
 
 ## EDA prediction confirmed
 
@@ -95,31 +88,24 @@ and reproduced identically on a second machine.
 
 ![feature importance](eda/feature_importance.png)
 
-*(figure reflects the first training run - see note below on why the exact
-per-feature split shifted on re-run, without changing the overall conclusion)*
+The current LightGBM artifact is the live model. Feature importance is calculated
+from the model's tree splits and normalized by the backend before being displayed.
+The three strongest physical inputs are expected to be `target_irradiation`,
+`target_solar_elevation`, and `target_is_daytime`:
 
-Two independent training runs agree that `target_is_daytime`, `target_irradiation`,
-and `target_solar_elevation` together account for ~99% of total importance:
-
-| Feature | Run 1 | Run 2 (different machine) |
+| Feature group | Earlier experiment | Current interpretation |
 |---|---|---|
-| target_irradiation | 32.4% | 81.7% |
-| target_solar_elevation | 14.3% | 17.5% |
-| target_is_daytime | 52.1% | 0.01% |
-| **combined** | **98.8%** | **99.2%** |
-| all "known-at-issue" features + horizon_hours | ~0.1% total | ~0.1% total |
+| Solar/astronomy features | ~99% combined | Primary live signal |
+| Removed power anchors | ~0.1% combined in the earlier experiment | Excluded because live values were artificial zeros |
 
-The exact split within the top cluster moved a lot between runs (expected - these
-three features are collinear, per the EDA's VIF check, so trees can credit any of
-them somewhat interchangeably) but the combined share and the conclusion did not:
+The exact split among the solar and astronomy features can move because they are
+correlated and interchangeable in tree splits. Importance is explanatory, not a
+causal percentage of generation.
 
-This directly resolves the "current state anchor" concern raised while planning
-Sprint 3: since there's no live SCADA feed for this dataset, "current output" has to
-be approximated (the model's own 0-hour self-prediction) rather than read from a
-real sensor. That approximation is now shown to be low-risk, on two independent
-runs - the model's actual predictions are driven almost entirely by target-time
-weather and solar position, which come directly from Open-Meteo and pvlib, not
-from the approximated anchor.
+This resolves the current-state anchor issue conservatively: the live model does
+not pretend to know current plant output. If SCADA becomes available, the removed
+power-anchor features can be restored after historical SCADA data is added and the
+model is retrained and reevaluated.
 
 ## Prediction intervals
 
@@ -128,13 +114,29 @@ metrics) - 90th-percentile absolute residual, by horizon bucket (this run):
 
 | Horizon | p90 absolute residual |
 |---|---|
-| 1-24h | 649.0 |
-| 25-48h | 754.6 |
-| 49-72h | 865.8 |
+| 1-24h | 692.1 |
+| 25-48h | 766.5 |
+| 49-72h | 895.5 |
 
 Band = prediction +/- the bucket's value, applied at inference. Grows with horizon,
 as it should - confirms the calibration is behaving sensibly rather than
 arbitrarily.
+
+## Feature reduction decision
+
+The original model contained three current-power features:
+`issue_ac_power`, `issue_ac_power_roll_1hr`, and `issue_ac_power_roll_1day`.
+During live inference, no SCADA feed exists, so all three were set to `0.0`.
+They were removed from both the training and backend feature contracts to avoid
+training on inputs that are artificial in production. The resulting model uses
+nine features that are available from live weather, timestamps, or pvlib.
+
+This is a deployment-consistency improvement, but it has a measured accuracy
+trade-off on the single test window: LightGBM MAE changed from 267.8 kW to
+291.7 kW and daytime MAPE from 5.0% to 5.8%. The reduced model remains better
+than reduced-feature XGBoost and is the honest model for the current no-SCADA
+prototype. If SCADA becomes available, these features should be restored only
+after adding historical SCADA values and retraining.
 
 ## Decisions made
 
