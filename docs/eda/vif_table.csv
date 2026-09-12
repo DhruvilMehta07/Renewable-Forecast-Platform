@@ -1,0 +1,13 @@
+feature,VIF
+target_solar_elevation,9.211492050728575
+issue_ac_power,8.2042458345674
+issue_ac_power_roll_1hr,8.134637887049493
+issue_ambient_temp,5.20138525584396
+target_irradiation,4.558454201729371
+target_is_daytime,4.3354888906615034
+hour,2.692332552876718
+target_ambient_temp,2.68007295188152
+issue_clearsky_index,2.1084105581066894
+day_of_year,1.5314523763188173
+issue_ac_power_roll_1day,1.1152874954653889
+horizon_hours,1.0263662742825512
