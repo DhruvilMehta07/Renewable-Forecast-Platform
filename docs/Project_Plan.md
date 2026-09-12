@@ -4,7 +4,22 @@
 **Build mode:** solo (Ayush) + AI pair (Claude), sequential sprints, ~1.5–2 days total.
 
 ## Objective
-Forecast 24–72hr solar/wind generation per site and recommend grid actions (curtail / dispatch storage / activate backup) via a three-layer system: forecasting → decision engine → dashboard. Full original concept: `docs/Ideation_Report_TheFinalCommit.pdf`.
+
+Build an evidence-led renewable energy decision-support system that forecasts
+24–72 hour solar generation and recommends grid actions (curtail, dispatch
+storage, activate backup) through a three-layer system: forecasting → decision
+engine → protected dashboard. Full original concept: `docs/Ideation_Report_TheFinalCommit.pdf`.
+
+## Judge-facing success criteria
+
+1. **Technical validity:** chronological evaluation, live-consistent features,
+	calibrated uncertainty, and reproducible artifacts.
+2. **Operational usefulness:** predictions are connected to thresholds, alerts,
+	capacity utilization, and explainable next actions.
+3. **Product usability:** an approved user can move from login to forecast,
+	exact hourly values, export, comparison, and What-if exploration.
+4. **Responsible scope:** validated Plant 1 behavior is separated from the
+	approximate What-if experience and future roadmap.
 
 ## Scope
 **In:** 1 validated solar site plus an approximate What-if site mode · Kaggle historical data + Open-Meteo live forecast · linear regression baseline → XGBoost and Optuna-tuned LightGBM · rule-based decision engine · authenticated React dashboard with saved forecast history and export · deployed live link.

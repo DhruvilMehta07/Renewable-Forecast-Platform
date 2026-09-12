@@ -1,4 +1,22 @@
-# Sprint 2 - Modeling: linear baseline vs tuned tree models
+# Modeling and Evaluation — Why GreenCast Can Be Trusted
+
+## Executive summary
+
+GreenCast uses Optuna-tuned LightGBM as its live model because it achieved the
+best result on an untouched chronological test window while preserving the
+same nine-feature contract used by live inference. The final result is **291.7
+kW MAE, 609.6 kW RMSE, and 5.8% daytime MAPE**. The primary engineering choice
+was not simply maximizing offline accuracy: it was avoiding training-serving
+mismatch by removing historical current-power inputs that are unavailable in
+the prototype's live environment.
+
+**Judge takeaway:** the model is stronger than both baselines, evaluated
+without random temporal leakage, and deployed with calibrated uncertainty and
+physical output safeguards.
+
+# Technical detail
+
+Sprint 2 - Modeling: linear baseline vs tuned tree models
 
 Script: `ml/train_models.py`. Split: time-based, by `issue_time` - train on everything
 before 2020-06-05 22:45, calibrate prediction intervals on the next 6 days (val),

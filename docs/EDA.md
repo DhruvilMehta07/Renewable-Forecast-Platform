@@ -1,4 +1,23 @@
-# EDA — Plant 1 forecast dataset
+# Exploratory Data Analysis — What the Data Taught Us
+
+## Executive summary
+
+The dataset has **210,340 horizon-stacked rows across 72 hourly horizons** and
+contains real solar behavior rather than a smooth synthetic curve:
+
+- Approximately 46.6% of target generation rows are exactly zero at night.
+- Generation is heavily right-skewed and weather-sensitive.
+- Timeline gaps required repair before lag construction.
+- Moderate feature overlap was expected around solar position and recent power.
+- The analysis supported one horizon-aware tree model rather than separate
+  day/night models or a naive time-of-day average.
+
+**Judge takeaway:** EDA directly changed the pipeline, metrics, and feature
+contract; it was not only a visualization step.
+
+# Technical detail
+
+EDA — Plant 1 forecast dataset
 
 Standard-procedure checks run on `data/plant1_forecast_dataset.csv` (210,340 rows,
 72 horizons) before modeling. Script: `ml/eda.py`. Figures: `docs/eda/*.png`.

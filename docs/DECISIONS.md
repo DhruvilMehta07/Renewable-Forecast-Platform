@@ -1,4 +1,22 @@
-# Sprint 1 — Data & Feature Engineering: Decisions and Bugs Found
+# Data and Feature Engineering — Decisions That Improved Reliability
+
+## Executive summary
+
+The strongest decisions in GreenCast were about temporal correctness and live
+consistency, not just model selection:
+
+1. Repair the timeline before calculating lag features.
+2. Separate issue-time inputs from target-time future inputs.
+3. Make the forecast horizon explicit from 1 to 72 hours.
+4. Remove current-power features that cannot be supplied at live inference.
+5. Keep What-if mode clearly labeled as an approximate, capacity-scaled estimate.
+
+These decisions make the reported accuracy more defensible and prevent the
+dashboard from presenting information the live system does not actually have.
+
+# Technical detail
+
+Sprint 1 — Data & Feature Engineering: Decisions and Bugs Found
 
 ## Dataset
 - Source: Kaggle "Solar Power Generation Data" (anikannal) — https://www.kaggle.com/datasets/anikannal/solar-power-generation-data

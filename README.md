@@ -1,159 +1,274 @@
-# GreenCast — Renewable Energy Forecasting Platform
+# GreenCast
 
-GreenCast forecasts 24–72 hour solar generation and recommends grid actions
-such as curtailment and backup dispatch. It combines live weather, a trained
-LightGBM model, uncertainty ranges, and an explainable dashboard. Built for
-**HackOut 2026** (Synapse) by team **The Final Commit**, Dhirubhai Ambani
-University.
+## Renewable Energy Forecasting and Grid Decision Support
 
-Full original concept: [`docs/Ideation_Report_TheFinalCommit.pdf`](docs/Ideation_Report_TheFinalCommit.pdf)
+GreenCast converts live weather forecasts into an operationally useful 72-hour solar generation forecast. It combines a time-aware LightGBM model, calibrated uncertainty ranges, explainable grid-action flags, authenticated access, and an interactive dashboard for Plant 1 monitoring and What-if site exploration.
 
-## Status
+**Hackathon project:** HackOut 2026, Synapse
+**Team:** The Final Commit, Dhirubhai Ambani University
+**Domain:** Renewable energy forecasting, energy operations, machine learning, decision support
 
-**Current status:** data pipeline, EDA, modeling, authenticated backend, and
-the full dashboard are implemented. The live backend uses the Optuna-tuned
-LightGBM model; XGBoost remains stored as a benchmark/fallback. Full sprint
-status: [`docs/Project_Plan.md`](docs/Project_Plan.md).
+> **One-line value proposition:** GreenCast helps renewable-energy operators anticipate generation, understand uncertainty, and act before supply conditions change.
 
-## Model performance
+---
 
-| Model | MAE | MAPE (daytime) |
-|---|---|---|
-| Linear regression baseline | 424.3 | 19.8% |
-| XGBoost | 353.9 | 8.7% |
-| **Optuna-tuned LightGBM** | **291.7** | **5.8%** |
+## 1. The Problem
 
-Full results, LightGBM tuning details, feature importance, and prediction interval calibration: [`docs/MODELING.md`](docs/MODELING.md).
+Renewable generation is variable, but grid and plant decisions must be made ahead of time. A solar operator needs to know:
 
-## How it works
+- How much power is likely to be generated over the next 24–72 hours.
+- When generation may be unusually low and backup or storage may be needed.
+- When generation may approach capacity and curtailment planning may be required.
+- How uncertain the forecast is at each future horizon.
+- Whether the forecast changed materially after new weather information arrived.
 
-1. **Offline, once:** historical solar generation + weather data → feature engineering → a horizon-aware training set with nine live-consistent features → compares linear regression, XGBoost, and Optuna-tuned LightGBM.
-2. **Live, on every request:** current + 72hr forecast weather (Open-Meteo) + computed solar position (pvlib) → assembled into the same feature shape the model was trained on → 72-hour prediction with a confidence band.
-3. **Then:** a rule-based decision engine flags curtailment/dispatch/backup periods from the prediction, and a dashboard displays the forecast, alerts, and feature importance.
+A simple time-of-day average is not enough. It misses cloud-driven variation, changes in weather, sunrise and sunset behavior, and the increasing uncertainty of longer horizons. A useful system must combine prediction with context and action.
 
-Full breakdown of what's used at each step: [`docs/DECISIONS.md`](docs/DECISIONS.md).
+## 2. Our Solution
 
-The GreenCast dashboard provides chart and table views, 24/48/72-hour focus
-controls, CSV export, capacity utilization, alert explanations, timezone and
-freshness context, saved-run comparison, and plain-language model guidance.
-Access to the dashboard is protected by an administrator approval workflow,
-username/password authentication, hashed passwords, expiring bearer tokens,
-and user-scoped forecast history. Anyone can submit an access request, but only
-approved users can sign in and see forecast data.
+GreenCast is a three-layer system:
 
-## User workflow
+1. **Forecasting:** a production-consistent LightGBM model predicts hourly solar AC power for horizons 1–72 hours ahead.
+2. **Decision support:** a rule-based engine converts the forecast into `normal`, `curtail`, or `backup_dispatch` recommendations using capacity-relative thresholds.
+3. **Operator experience:** a protected React dashboard presents trends, uncertainty, exact hourly values, utilization, alerts, explanations, comparisons, and CSV export.
 
-1. Open GreenCast. The public welcome screen offers **User login**, **Admin
-	login**, and **Create account**.
-2. Create an account with a display name, unique username, six-digit employee
-	ID, and password of at least eight characters. The request is stored as
-	`pending`; no dashboard token is issued.
-3. An administrator signs in through **Admin login**, reviews the employee ID
-	and account request, then chooses **Approve** or **Reject**.
-4. After approval, the employee signs in through **User login** and the
-	dashboard loads the validated Plant 1 forecast.
-5. Use the dashboard controls to choose a time window, switch between chart and
-	table views, inspect alerts, export CSV, and review model guidance.
-5. Use **What-if site** to search for a location, select a result, enter site
-	capacity, and run an approximate capacity-scaled estimate.
-6. Refresh the forecast to save a new run. Matching runs can then be compared
-	in the forecast history panel.
-7. Use **Sign out** to clear the local session token.
+The design deliberately favors honest deployment behavior. The model uses only features available during live inference. It does not depend on artificial current-power placeholders or claim site generalization that has not been validated.
 
-The default local administrator is created automatically on first startup:
+---
+
+## 3. Measured Results
+
+The final model was evaluated on an untouched chronological test window. The test period was never used for tuning or interval calibration.
+
+| Model | MAE (kW) | RMSE (kW) | Daytime MAPE | Night/near-zero MAE (kW) |
+|---|---:|---:|---:|---:|
+| Linear regression baseline | 424.3 | 663.2 | 19.8% | 167.5 |
+| XGBoost | 353.9 | 692.2 | 8.7% | 11.8 |
+| **Optuna-tuned LightGBM** | **291.7** | **609.6** | **5.8%** | **1.8** |
+
+### What these numbers mean
+
+- LightGBM reduces MAE by **31.2% versus the linear baseline**: $(424.3 - 291.7) / 424.3$.
+- It reduces daytime MAPE from **19.8% to 5.8%**, a **70.7% relative reduction**.
+- It maintains very low nighttime error because nighttime generation is physically zero and explicitly enforced at the API boundary.
+- Horizon-specific LightGBM MAE remains stable: **292.5 kW at 1–24 hours**, **301.2 kW at 25–48 hours**, and **278.1 kW at 49–72 hours** on this test window.
+
+MAPE is calculated only where actual generation exceeds 100 kW because approximately 46.6% of target rows are exactly zero at night. Night performance is reported separately using MAE instead of hiding the zero-generation behavior inside an invalid percentage metric.
+
+Full methodology and results: [docs/MODELING.md](docs/MODELING.md).
+
+---
+
+## 4. Why This Approach Is Defensible
+
+### Chronological evaluation, not random splitting
+
+Random splitting would allow adjacent timestamps and future weather patterns to leak into training. GreenCast uses:
+
+- **Train:** all rows before the validation period.
+- **Validation:** the next six days, used for interval calibration and model selection logic.
+- **Test:** the final six days, touched once for final reporting.
+
+LightGBM tuning uses three spaced chronological four-day validation windows, 20 Optuna TPE trials, regularization, subsampling, and early stopping.
+
+### Live-consistent feature contract
+
+The final model uses nine features available from weather, timestamps, or pvlib solar calculations:
+
+1. Issue-time ambient temperature
+2. Issue-time clear-sky index
+3. Issue hour
+4. Day of year
+5. Forecast horizon in hours
+6. Target-time ambient temperature
+7. Target-time irradiation
+8. Target-time solar elevation
+9. Target-time daytime indicator
+
+Three historical current-power features were removed because the prototype has no SCADA feed. Keeping them would have meant training on real historical power but serving constant zero placeholders at inference. The final model accepts a measured accuracy trade-off in exchange for deployment integrity.
+
+### Uncertainty is calibrated separately from point prediction
+
+The dashboard shows a prediction interval calibrated on validation residuals, not on the final test set:
+
+| Horizon | 90th-percentile absolute residual |
+|---|---:|
+| 1–24 hours | 692.1 kW |
+| 25–48 hours | 766.5 kW |
+| 49–72 hours | 895.5 kW |
+
+The widening band communicates a practical truth: longer-horizon forecasts carry more uncertainty.
+
+---
+
+## 5. Product Capabilities
+
+### Authentication and authorization
+
+- Public GreenCast landing and access-request screen.
+- User signup requires display name, unique username, password, and an exactly six-digit employee ID.
+- Signup creates a `pending` request; it does not issue a dashboard token.
+- A separate administrator login opens the account-request console.
+- Admins approve or reject employee requests.
+- Only approved users can sign in and access forecast data.
+- Passwords use salted PBKDF2-HMAC-SHA256 hashing.
+- JWT bearer tokens expire after eight hours.
+- Forecast history is scoped to the authenticated user.
+
+### Forecast dashboard
+
+| Capability | User value |
+|---|---|
+| Forecast summary | Quickly see next-hour output, 72-hour peak, forecast window, and active alerts. |
+| Chart view | Understand the generation curve, uncertainty band, nighttime periods, and action markers. |
+| Table view | Inspect exact hourly values, bounds, capacity utilization, and recommended action. |
+| 24/48/72-hour controls | Focus the view on immediate planning or the complete forecast horizon. |
+| CSV export | Use the selected forecast window in reports or operational workflows. |
+| Capacity utilization | Interpret output as a percentage of available site capacity. |
+| Alert explanations | Understand why curtailment or backup dispatch was recommended. |
+| Timezone and freshness | Avoid misreading timestamps and know when data was refreshed. |
+| Forecast comparison | See how predictions changed between matching saved runs. |
+| Forecast guide | Understand expected output, possible range, action flags, and What-if limitations. |
+
+### Two operating modes
+
+- **Plant 1:** validated reference mode using the fixed dataset site configuration and live weather.
+- **What-if site:** search for a location, choose a geocoded result, provide capacity, and explore a capacity-scaled estimate. This mode is explicitly labeled approximate because the model was trained on Plant 1.
+
+---
+
+## 6. End-to-End Architecture
+
+```mermaid
+flowchart LR
+    A[Historical generation and weather] --> B[Timeline repair and feature engineering]
+    B --> C[Chronological training and Optuna tuning]
+    C --> D[LightGBM model artifact]
+    E[Open-Meteo live weather] --> F[Live feature assembly with pvlib]
+    D --> F
+    F --> G[72-hour forecast and calibrated range]
+    G --> H[Decision engine]
+    H --> I[Protected React dashboard]
+    I --> J[Chart, table, alerts, utilization, export, comparison]
+    K[Admin approval workflow] --> I
+```
+
+### Repository map
 
 ```text
-Username: admin
-Password: GreenCastAdmin123!
+data/       source generation and weather CSVs
+ml/         dataset construction, EDA, model training, model artifacts
+backend/    FastAPI API, authentication, SQLite persistence, decision engine
+frontend/   React dashboard, auth screens, charts, table, export, admin console
+docs/       methodology, decisions, modeling, backend, frontend, project plan
 ```
 
-Change these values before shared or deployed use with
-`GREENCAST_ADMIN_USERNAME` and `GREENCAST_ADMIN_PASSWORD`. Also set a strong
-`GREENCAST_AUTH_SECRET`; never use the development defaults in production.
+---
 
-## Dashboard feature guide
-
-| Feature | What it shows | How to use it |
-|---|---|---|
-| Forecast summary | Next-hour output, 72-hour peak, forecast window, and alert count | Scan the summary after loading a forecast |
-| Chart view | Expected output, uncertainty band, nighttime shading, and action markers | Hover over the chart for date, time, values, and decision context |
-| Table view | Exact hourly forecast values, range, capacity use, and action | Select `Table` when exact values matter |
-| Time window | Next 24, 48, or 72 hours | Select `24h`, `48h`, or `72h` above the visualization |
-| CSV export | Downloadable forecast data for the selected window | Select `Download CSV` |
-| Capacity utilization | Expected generation as a percentage of site capacity | Review the utilization chart or table column |
-| Action explanations | Why curtailment or backup dispatch was flagged | Read the explanation under each alert |
-| Timezone and freshness | Site timezone, issue time, and refresh age | Check the dashboard header before interpreting timestamps |
-| Forecast comparison | Change between matching saved forecast runs | Refresh at least twice in the same mode/site/capacity after approval |
-| Forecast guide | Plain-language explanations of output, range, and actions | Read the guide below the model panels |
-
-The Plant 1 view is the validated reference forecast. What-if mode is an
-exploratory estimate because the model was trained on Plant 1 rather than on
-every possible site.
-
-## Data
-
-Kaggle ["Solar Power Generation Data"](https://www.kaggle.com/datasets/anikannal/solar-power-generation-data) (anikannal) — Plant 1, 15-minute intervals, 34 days. Two files: per-inverter generation, plant-level weather sensors.
-
-## Repo structure
-
-```
-data/       raw source CSVs (generated dataset is gitignored — regenerate with the script below)
-ml/         data pipeline, EDA, model training, and trained model artifacts
-backend/    FastAPI service — forecast, feature importance, and history endpoints
-frontend/   React dashboard — authentication, forecast views, alerts, export, and explanations
-docs/       ideation report, project plan, decisions log, and every sprint's findings/figures
-```
-
-## Setup
-
-```bash
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-# Use a long random value outside local development:
-export GREENCAST_AUTH_SECRET="replace-with-a-long-random-secret"
-python3 ml/build_forecast_dataset.py   # builds data/plant1_forecast_dataset.csv
-python3 ml/eda.py                       # regenerates docs/eda/*.png and stats
-python3 ml/train_models.py              # trains baseline, XGBoost, and tuned LightGBM
-
-cd backend
-uvicorn main:app --reload               # serves the API at http://localhost:8000
-pytest tests/                           # runs the backend test suite (mocked weather, no network needed)
-
-cd ../frontend
-npm install && npm run dev              # serves the dashboard, defaults to http://localhost:5173
-```
+## 7. Local Setup
 
 ### Windows PowerShell
 
 ```powershell
 cd "C:\Users\ajudi\OneDrive\Desktop\Hackout\Renewable-Forecast-Platform"
-\.\venv\Scripts\Activate.ps1
-$env:GREENCAST_AUTH_SECRET = "replace-with-a-long-random-secret"
+py -3.13 -m venv venv
+.\venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
 
-# Terminal 1
+# Required outside local development. Use a long random value.
+$env:GREENCAST_AUTH_SECRET = "replace-with-a-long-random-secret"
+$env:GREENCAST_ADMIN_USERNAME = "admin"
+$env:GREENCAST_ADMIN_PASSWORD = "replace-with-a-strong-admin-password"
+```
+
+Start the backend in Terminal 1:
+
+```powershell
 cd backend
 python -m uvicorn main:app --reload
+```
 
-# Terminal 2
-cd ..\frontend
+Start the frontend in Terminal 2:
+
+```powershell
+cd frontend
 npm install
 npm run dev
 ```
 
-Open the frontend URL printed by Vite, usually `http://localhost:5173`.
-The API documentation is available at `http://localhost:8000/docs`.
+Open the Vite URL, usually `http://localhost:5173`. The API documentation is at `http://localhost:8000/docs`.
 
-## Key decisions and limitations
+### First-use flow
 
-Two real bugs were found and fixed during data pipeline development (timeline gaps breaking lag features, and an initial nowcast/forecast mismatch) — full writeup in [`docs/DECISIONS.md`](docs/DECISIONS.md). EDA findings (zero-inflation, multicollinearity, residual missing values) are in [`docs/EDA.md`](docs/EDA.md). Modeling results and the resolved "current state anchor" question are in [`docs/MODELING.md`](docs/MODELING.md).
+1. Log in as the configured administrator.
+2. In another browser session, submit a user account request with a six-digit employee ID.
+3. In the admin console, review and approve the request.
+4. Log in through User login with the approved account.
+5. Explore the forecast dashboard and its nine decision-support features.
 
-Known limitations: the evaluation uses one short historical period and assumes perfect target-time weather during backtesting; rare, sudden-weather-transition cases remain harder to predict than average-case numbers suggest. The three zero-placeholder current-power features were removed from the live-consistent model; adding real SCADA later may improve performance. LightGBM is the current live model, while XGBoost remains a benchmark/fallback. What-if forecasts are approximate and do not model panel tilt, azimuth, efficiency, terrain, or technology. The decision engine's capacity/demand thresholds are a practical proxy (no real grid-demand data available for this dataset), documented in [`docs/BACKEND.md`](docs/BACKEND.md). For production deployment, replace the local SQLite setup with managed persistence, configure a strong `GREENCAST_AUTH_SECRET`, and serve the API over HTTPS.
+For Linux/macOS setup and deeper implementation details, see [docs/FRONTEND.md](docs/FRONTEND.md) and [docs/BACKEND.md](docs/BACKEND.md).
 
-## Future scope
+---
 
-Multi-site generalization, real market-price signals in the decision engine, satellite-based sub-hour nowcasting, scheduled retraining, and a learned policy replacing the rule-based decision thresholds. See `docs/Project_Plan.md` for the full in/out-of-scope list.
+## 8. Testing and Quality Evidence
+
+The current backend suite contains **17 passing tests** covering:
+
+- Missing authentication and protected routes
+- Signup, duplicate usernames, password verification, and pending approval
+- Six-digit employee ID validation
+- Admin approval and rejection paths
+- Admin-only endpoint authorization
+- User-scoped history isolation
+- Forecast response shape and physical bounds
+- Nighttime zero enforcement
+- What-if capacity scaling and output capping
+- Geocoding fallback behavior
+- Weather failure handling
+- Feature-importance normalization
+
+Frontend validation includes a successful production build and static diagnostics checks. The only build warning is the Recharts bundle-size advisory; it does not affect correctness.
+
+---
+
+## 9. Known Limitations and Responsible Claims
+
+- Evaluation uses one short historical period from one solar plant.
+- Backtesting uses target-time historical weather as a proxy for weather forecasts, so live accuracy may be lower.
+- What-if mode is capacity-scaled exploration, not site-specific certification.
+- The prototype does not yet ingest real SCADA telemetry, market prices, demand, panel geometry, or storage state.
+- Decision thresholds are practical capacity-based proxies, not a replacement for grid-market data.
+- SQLite and the local default admin configuration are appropriate for a hackathon prototype, not a production deployment without hardening.
+- A production deployment should use managed persistence, secret management, HTTPS, rate limiting, audit logs, and a stronger identity-verification process.
+
+These limitations are part of the engineering story: GreenCast makes explicit what is validated today and what must be added before operational deployment.
+
+---
+
+## 10. Future Impact
+
+The next highest-value extensions are:
+
+1. Add real SCADA current-power features after collecting historical SCADA data and retraining.
+2. Compare forecasts with actual generation to measure live error and bias.
+3. Add weather-context explanations such as irradiance, cloud cover, sunrise, and sunset.
+4. Integrate storage state, demand, market prices, and curtailment cost.
+5. Generalize across multiple sites and renewable technologies.
+6. Add scheduled retraining, monitoring, drift detection, and forecast-quality alerts.
+
+The long-term direction is an auditable renewable operations layer: not only predicting energy, but connecting prediction quality, uncertainty, and recommended action in one workflow.
+
+---
+
+## Documentation Index
+
+- [Modeling and evaluation](docs/MODELING.md)
+- [Data, feature engineering, and decisions](docs/DECISIONS.md)
+- [Exploratory data analysis](docs/EDA.md)
+- [Backend, API, auth, and persistence](docs/BACKEND.md)
+- [Frontend, UX, and feature usage](docs/FRONTEND.md)
+- [Project plan and sprint status](docs/Project_Plan.md)
 
 ## License
 
-MIT — see [`LICENSE`](LICENSE).
+MIT — see [LICENSE](LICENSE).
