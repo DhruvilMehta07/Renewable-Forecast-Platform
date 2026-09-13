@@ -12,6 +12,31 @@ GreenCast converts live weather forecasts into an operationally useful 72-hour s
 
 ---
 
+## Live Demo
+
+| | |
+|---|---|
+| **Frontend (dashboard)** | https://renewable-forecast-platform.vercel.app/ |
+| **Backend (API + Swagger docs)** | https://renewable-forecast-platform.onrender.com/docs |
+
+### Judge login (admin account)
+
+| Field | Value |
+|---|---|
+| Login type | Admin |
+| Username | `Admin` |
+| Password | `GreenCastAdmin123!` |
+
+> The backend runs on Render's free tier, so the first request after a period of inactivity can take 30–50 seconds to wake up (cold start). If the dashboard looks stuck loading on first visit, wait a moment and retry.
+
+**Suggested judge flow:**
+1. Open the frontend link above.
+2. Log in with the admin credentials to see the account-approval console — or sign up as a new user (a six-digit employee ID is required) and approve that request from the admin console in another tab.
+3. Log in as the approved user and explore the Plant 1 forecast dashboard: chart/table views, 24/48/72h controls, alerts, and CSV export.
+4. Try What-if mode with any location and capacity.
+
+---
+
 ## 1. The Problem
 
 Renewable generation is variable, but grid and plant decisions must be made ahead of time. A solar operator needs to know:
